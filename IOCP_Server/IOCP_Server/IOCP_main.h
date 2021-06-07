@@ -5,6 +5,11 @@
 #include <process.h>
 #include <iostream> 
 #include <WinSock2.h> 
+#include <string>
+#include "Define.h"
+#include "UserData.h"
+#include "RoomData.h"
+#include "ChannelData.h"
 
 #pragma comment(lib, "ws2_32.lib") 
 #pragma comment(lib, "mswsock.lib")
@@ -13,8 +18,7 @@ using namespace std;
 
 class SocketData;
 
-const int BUF_SIZE = 1024;
-const int MAX_SOCKET = 4;
+vector<ChannelData> ch;
 
 HANDLE hAcceptIOCP;
 HANDLE hWorkerIOCP;
@@ -42,15 +46,15 @@ public:
 	BOOL isConnected;
 	SOCKET sock;
 	DWORD byteSize; //전송바이트
-	char bufFront[BUF_SIZE];
+	char bufRecvData[BUF_SIZE];
 	char* bufEnd;
 	sockaddr_in mLocal, mRemote;
-	string sendData;
+	char* sendData;
 	WSABUF recvBuf, sendBuf;
 	DWORD recvFlag;
 	stOverlap recvOverLap,sendOverLap;
-
-	int sock_num;
+	int userIndex;
+	UserData* userData;
 
 	SocketData(SOCKET& listenSock,int iSock_num);
 

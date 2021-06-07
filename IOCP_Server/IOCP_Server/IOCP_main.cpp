@@ -2,22 +2,28 @@
 #include <iostream> 
 #include <WinSock2.h> 
 #include "IOCP_main.h"
+#include "Packets.h"
 
 // 초기화할때 AcceptEx를 이용하여 리슨될때 생성한 소켓으로 갈 수 있게 해준다.
 // AcceptEx(리슨소켓, 만들어진넣을소켓, 수신된 데이터를 받을 버퍼[char []],	받을 데이터크기[int], 소켓 ip크기[int], 소켓 ip크기, 받은데이터 크기[DWORD], overlap 구조체
 // GetAcceptExSockaddrs(overlap의 버퍼크기,	받을 데이터크기, 소켓 ip크기, 소켓 ip크기, 로컬ip받을 sockaddr_in, 로컬 ip 크기[int], 리모트 ip받을 sockaddr_in, 리모트 ip 크기[int])
 
-SocketData::SocketData(SOCKET& listenSock,int iSock_num)
+void PostSend(SocketData& sockData);
+
+SocketData::SocketData(SOCKET& listenSock, int iSock_num)
 {
 	memset(this, NULL, sizeof(*this));
 	int zero = 0;
 	isConnected = false;
-	sock_num = iSock_num;
-	ZeroMemory(bufFront, BUF_SIZE);
+	userIndex = iSock_num;
+	ZeroMemory(bufRecvData, BUF_SIZE);
 	ZeroMemory(&recvBuf, sizeof(WSABUF));
 	sendData = { 0, };
+	if (userData != NULL)
+		free(userData);
+	userData = new UserData;
 
-	bufEnd = &bufFront[0];
+	bufEnd = &bufRecvData[0];
 	sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (sock == INVALID_SOCKET)
 		cout << "Fail create sock" << endl;
@@ -57,7 +63,7 @@ unsigned int __stdcall AcceptThread(void* arg)
 		{
 			if (!overlap->sockData->isConnected)
 			{
-				GetAcceptExSockaddrs(&overlap->sockData->bufFront[0], 0, sizeof(sockaddr_in) + 16, sizeof(sockaddr_in) + 16, (sockaddr**)&local, &localLen, (sockaddr**)&remote, &remoteLen);
+				GetAcceptExSockaddrs(&overlap->sockData->bufRecvData[0], 0, sizeof(sockaddr_in) + 16, sizeof(sockaddr_in) + 16, (sockaddr**)&local, &localLen, (sockaddr**)&remote, &remoteLen);
 				memcpy(&overlap->sockData->mLocal, local, sizeof(sockaddr_in));
 				memcpy(&overlap->sockData->mRemote, remote, sizeof(sockaddr_in));
 				setsockopt(overlap->sockData->sock, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char*)&sockListen, sizeof(sockListen));
@@ -79,7 +85,6 @@ unsigned int __stdcall WorkerThread(void* arg)
 	while (1)
 	{
 		result = GetQueuedCompletionStatus(hWorkerIOCP, &nByteSize, (PULONG_PTR)&key, (OVERLAPPED**)&overlap, INFINITE);
-		cout << "Worker Connect!"/* << overlap->sockData->sock_num*/ << endl;
 
 		if (!result || overlap == NULL)
 		{
@@ -97,8 +102,6 @@ unsigned int __stdcall WorkerThread(void* arg)
 				if (nByteSize != 0)
 					WorkingCommand(*(overlap->sockData));
 			}
-			else 
-				cout<<"State : Send"<<endl;
 		}
 	}
 }
@@ -107,29 +110,63 @@ void WorkingCommand(SocketData& sockData)
 {
 	int localLen, remoteLen;
 	sockaddr_in* local = 0, * remote = 0;
+	short commandType = 0;
 
-	//switch (sockData.recvOverLap.state)
-	//{
-	//case STATE_READ:
-	//case STATE_WRITE:
-		if (sockData.byteSize == SOCKET_ERROR)
+
+	if (sockData.byteSize == SOCKET_ERROR)
+	{
+		cout << "Command sock error socket close" << endl;
+		CloseSocket(sockData, true);
+	}
+	else if (sockData.byteSize == 0)
+	{
+		cout << "Command size zero socket close" << endl;
+		CloseSocket(sockData, false);
+	}
+	else
+	{
+		sockData.bufEnd += sockData.byteSize;
+		CopyMemory(&commandType, sockData.bufRecvData , sizeof(short));
+
+		switch (commandType)
 		{
-			cout << "Command sock error socket close" << endl;
-			CloseSocket(sockData, true);
-		}
-		else if (sockData.byteSize == 0)
+		case REQUEST_LOGIN:
 		{
-			cout << "Command size zero socket close" << endl;
-			CloseSocket(sockData, false);
+			TestPacket* packet = reinterpret_cast<TestPacket*>(sockData.bufRecvData);
+			strcpy_s(sockData.userData->userName, MAX_USER_NAME, packet->userName);
+			cout << sockData.userIndex << " : " << packet->userName << endl;
+
+			char tmp_packet[1024] = { 0, };
+			AnswerLoginPacket* answerLoginPacket = (AnswerLoginPacket*)tmp_packet;
+			answerLoginPacket->commandType = (short)ANSWER_LOGIN;
+			for (int i = 0; i < MAX_CHANNEL; i++)
+			{
+				//answerLoginPacket->channelState[i] = (short)ch[i].GetChannelState();
+				answerLoginPacket->channelState[i] = (short)ch[i].GetChannelState();
+				cout << answerLoginPacket->channelState[i] << "  ";
+			}
+			cout << endl;
+			for (int i = 0; i < MAX_CHANNEL; i++)
+			{
+				answerLoginPacket->users[i] = (short)ch[i].userDatas.size()+1;
+				cout << answerLoginPacket->users[i] << "  ";
+			}
+			cout << endl;
+			//strcpy_s(answerLoginPacket->userName, strlen(sockData.userData->userName), sockData.userData->userName);
+			CopyMemory(answerLoginPacket->userName, sockData.userData->userName, strlen(sockData.userData->userName));
+			cout << answerLoginPacket->userName  << endl;
+
+			sockData.sendData = tmp_packet;
+			sockData.byteSize = sizeof(AnswerLoginPacket);
+			PostSend(sockData);
+			break;
 		}
-		else
-		{
-			sockData.bufEnd += sockData.byteSize;
-			if (DoEcho(sockData))
-				PostRead(sockData);
+		default:
+			cout << (short)(sockData.bufRecvData[0] + sockData.bufRecvData[1]) << endl;
+			break;
 		}
-	//	break;
-	//}
+		PostRead(sockData);
+	}
 }
 
 void PostSend(SocketData& sockData)
@@ -137,9 +174,8 @@ void PostSend(SocketData& sockData)
 	BOOL result;
 	DWORD err;
 
-	sockData.byteSize = sockData.sendData.size();
 	sockData.sendBuf.len = sockData.byteSize;
-	sockData.sendBuf.buf = const_cast<char*>(sockData.sendData.c_str());
+	sockData.sendBuf.buf = sockData.sendData;
 	result = WSASend(sockData.sock, &sockData.sendBuf, 1, &sockData.byteSize, 0, (OVERLAPPED*)&sockData.sendOverLap, 0);
 
 	result = (result != SOCKET_ERROR);
@@ -152,16 +188,17 @@ void PostSend(SocketData& sockData)
 			CloseSocket(sockData, true);
 		}
 	}
+	cout << "Postsend Success" << endl;
 }
 
 void PostRead(SocketData& sockData)
 {
 	BOOL result;
 
-	if (sockData.bufEnd == &sockData.bufFront[BUF_SIZE])
-		sockData.bufEnd = &sockData.bufFront[0];
+	if (sockData.bufEnd == &sockData.bufRecvData[BUF_SIZE])
+		sockData.bufEnd = &sockData.bufRecvData[0];
 
-	sockData.byteSize = &sockData.bufFront[BUF_SIZE] - sockData.bufEnd;
+	sockData.byteSize = &sockData.bufRecvData[BUF_SIZE] - sockData.bufEnd;
 	sockData.recvBuf.len = sockData.byteSize;
 	sockData.recvBuf.buf = sockData.bufEnd;
 	sockData.recvFlag = 0;
@@ -184,17 +221,17 @@ void PostRead(SocketData& sockData)
 bool DoEcho(SocketData& sockData)
 {
 	char buff[BUF_SIZE];
-	memcpy(buff, sockData.bufFront, sockData.byteSize);
+	memcpy(buff, sockData.bufRecvData, sockData.byteSize);
 	buff[sockData.byteSize] = '\0';
-	cout << sockData.sock_num << " : " << sockData.bufFront << endl;
-	memset(sockData.bufFront, '\0', sizeof(sockData.bufFront));
+	cout << sockData.userIndex << " : " << sockData.bufRecvData << endl;
+	memset(sockData.bufRecvData, '\0', sizeof(sockData.bufRecvData));
 	sockData.byteSize = 0;
-	sockData.bufEnd = &sockData.bufFront[0];
+	sockData.bufEnd = &sockData.bufRecvData[0];
 	//Echo인 이유
 	iter_vSocketData iter;
 	for (iter = vSocketData.begin(); iter != vSocketData.end(); iter++)
 	{
-		if ((*iter)->recvOverLap.sockData->isConnected )
+		if ((*iter)->recvOverLap.sockData->isConnected)
 		{
 			(*iter)->sendData = buff;
 			PostSend(*(*iter));
@@ -265,12 +302,18 @@ int main()
 	vSocketData.clear();
 	for (int i = 0; i < maxsockets; i++)
 	{
-		SocketData* sockData = new SocketData(sockListen, i+1);
+		SocketData* sockData = new SocketData(sockListen, i);
 		//InitOVERLAP(*pOverlap);
 		vSocketData.push_back(sockData);
 	}
 
 	CreateIoCompletionPort((HANDLE)sockListen, hAcceptIOCP, 0, 0);
+
+	for (int i = 0; i < MAX_CHANNEL; i++)
+	{
+		ChannelData chData(i);
+		ch.push_back(chData);
+	}
 
 	while (TRUE) {};
 	for (iterOverlap = vSocketData.begin(); iterOverlap != vSocketData.end(); iterOverlap++)

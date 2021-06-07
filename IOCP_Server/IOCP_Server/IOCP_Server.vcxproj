@@ -139,9 +139,17 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="ChannelData.cpp" />
+    <ClCompile Include="RoomData.cpp" />
+    <ClCompile Include="UserData.cpp" />
     <ClCompile Include="IOCP_main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="ChannelData.h" />
+    <ClInclude Include="Define.h" />
+    <ClInclude Include="Packets.h" />
+    <ClInclude Include="RoomData.h" />
+    <ClInclude Include="UserData.h" />
     <ClInclude Include="IOCP_main.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

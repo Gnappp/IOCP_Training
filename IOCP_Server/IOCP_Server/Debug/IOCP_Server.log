@@ -1,0 +1,4 @@
+﻿  IOCP_main.cpp
+D:\Study\IOCP_Training\IOCP_Server\IOCP_Server\IOCP_main.cpp(111,6): warning C4101: 'localLen' :참조되지 않은 지역 변수입니다.
+D:\Study\IOCP_Training\IOCP_Server\IOCP_Server\IOCP_main.cpp(111,16): warning C4101: 'remoteLen' :참조되지 않은 지역 변수입니다.
+  IOCP_Server.vcxproj -> D:\Study\IOCP_Training\IOCP_Server\Debug\IOCP_Server.exe
