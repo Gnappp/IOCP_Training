@@ -1,4 +1,9 @@
-﻿  IOCP_main.cpp
-D:\Study\IOCP_Training\IOCP_Server\IOCP_Server\IOCP_main.cpp(111,6): warning C4101: 'localLen' :참조되지 않은 지역 변수입니다.
-D:\Study\IOCP_Training\IOCP_Server\IOCP_Server\IOCP_main.cpp(111,16): warning C4101: 'remoteLen' :참조되지 않은 지역 변수입니다.
+﻿  ChannelData.cpp
+  IOCP_main.cpp
+D:\Study\IOCP_Training\IOCP_Server\IOCP_Server\IOCP_main.cpp(177,82): warning C4267: '=': 'size_t'에서 'short'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+D:\Study\IOCP_Training\IOCP_Server\IOCP_Server\IOCP_main.cpp(112,6): warning C4101: 'localLen' :참조되지 않은 지역 변수입니다.
+D:\Study\IOCP_Training\IOCP_Server\IOCP_Server\IOCP_main.cpp(112,16): warning C4101: 'remoteLen' :참조되지 않은 지역 변수입니다.
+  RoomData.cpp
+  UserData.cpp
+  코드를 생성하고 있습니다...
   IOCP_Server.vcxproj -> D:\Study\IOCP_Training\IOCP_Server\Debug\IOCP_Server.exe

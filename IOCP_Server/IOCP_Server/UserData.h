@@ -1,6 +1,5 @@
 #pragma once
 #include "Define.h"
-#include "RoomData.h"
 
 #include<iostream>
 
@@ -8,10 +7,12 @@ class UserData
 {
 public:
 	int winCount, loseCount, DrawCount;
-	int isWhere;
+	short isWhere;
 	char userName[MAX_USER_NAME];
-	int channalNum;
-	int roomNum;
+	short channalNum;
+	short roomNum;
+	int userIndex;
+	int userSockIndex;
 
-	UserData();
+	UserData(int userSock);
 };

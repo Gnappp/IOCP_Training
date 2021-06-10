@@ -1,6 +1,7 @@
 #include "UserData.h"
 
-UserData::UserData()
+UserData::UserData(int userSock)
 {
 	memset(this, NULL, sizeof(*this));
+	userSockIndex = userSock;
 }
