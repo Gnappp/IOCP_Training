@@ -1,4 +1,4 @@
 ﻿  main.cpp
-D:\Study\IOCP_Training\IOCP_Client\IOCP_Client\main.cpp(223,1): warning C4326: 'main'의 반환 형식이 'int'이어야 하는데 'void'입니다.
-D:\Study\IOCP_Training\IOCP_Client\IOCP_Client\main.cpp(235,29): warning C4996: 'inet_addr': Use inet_pton() or InetPton() instead or define _WINSOCK_DEPRECATED_NO_WARNINGS to disable deprecated API warnings
+D:\Study\IOCP_Training\IOCP_Client\IOCP_Client\main.cpp(374,1): warning C4326: 'main'의 반환 형식이 'int'이어야 하는데 'void'입니다.
+D:\Study\IOCP_Training\IOCP_Client\IOCP_Client\main.cpp(386,29): warning C4996: 'inet_addr': Use inet_pton() or InetPton() instead or define _WINSOCK_DEPRECATED_NO_WARNINGS to disable deprecated API warnings
   IOCP_Client.vcxproj -> D:\Study\IOCP_Training\IOCP_Client\Debug\IOCP_Client.exe

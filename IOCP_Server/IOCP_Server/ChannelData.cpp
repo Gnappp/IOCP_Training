@@ -42,17 +42,27 @@ short ChannelData::GetChannelState()
 short ChannelData::CreateRoom(UserData &userData)
 {
 	if (notuseRoomNum.size() < 0)
-		return false;
+		return 0;
 	short useRoomNum = notuseRoomNum[notuseRoomNum.size() - 1];
 	notuseRoomNum.pop_back();
 	RoomData* newRoomData = new RoomData(useRoomNum, userData, channelNum);
 	roomDatas.insert(make_pair(useRoomNum, newRoomData));
 	usingRoomNum.insert(useRoomNum);
-	return true;
+	return useRoomNum;
 }
 
 bool ChannelData::JoinRoom(short roomNum, UserData &userData)
 {
 	map<int, RoomData*>::iterator iter = roomDatas.find(roomNum);
 	return iter->second->JoinRoom(roomNum, userData);
+}
+
+bool ChannelData::DeleteRoom(short roomNum)
+{
+	if (roomDatas.find(roomNum)->second->userDatas.size() != 0)
+		return false;
+	roomDatas.erase(roomDatas.find(roomNum));
+	usingRoomNum.erase(roomNum);
+	notuseRoomNum.push_back(roomNum);
+	return true;
 }

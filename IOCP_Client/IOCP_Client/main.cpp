@@ -24,14 +24,12 @@ unsigned int __stdcall RecvMsg(void* arg) {
 	SOCKET sock = *((SOCKET*)arg);//서버용 소켓을 전달한다.
 	char msg[BUF_SIZE] = { 0, };
 	short commandType=0;
-	short test1=0;
 	int strLen;
 	while (1) {//반복
 		strLen = recv(sock, msg, BUF_SIZE - 1, 0);//서버로부터 메시지를 수신한다.
 		if (strLen == -1)
 			return -1;
 		CopyMemory(&commandType, msg, sizeof(short));
-		CopyMemory(&test1, msg + sizeof(short), sizeof(short));
 		switch (commandType)
 		{
 		case ANSWER_LOGIN:
@@ -50,15 +48,14 @@ unsigned int __stdcall RecvMsg(void* arg) {
 			}
 			cout << endl;
 			cout << recvPacket->userName << endl;
-			strcpy_s(playerData->userName, MAX_USER_NAME, recvPacket->userName);
-			playerData->isState = STATE_CHANNEL;
+			strcpy_s(userData->userName, MAX_USER_NAME, recvPacket->userName);
+			userData->isState = STATE_CHANNEL;
 			break;
 		}
 		case ANSWER_JOIN_CHANNEL:
 		{
 			cout << "Channel in" << endl;
 			AnswerJoinChannelPacket* recvPacket = reinterpret_cast<AnswerJoinChannelPacket*>(msg);
-			short command = (short)recvPacket->commandType;
 			if (recvPacket->isSuccess)
 			{
 				int usingRoomNum = (short)recvPacket->usingRoomNumSize;
@@ -74,24 +71,150 @@ unsigned int __stdcall RecvMsg(void* arg) {
 				{
 					cout << "No room" << endl;
 				}
-				playerData->isState = STATE_CHANNEL_IN;
+				userData->isState = STATE_CHANNEL_IN;
 			}
 			else
-				playerData->isState = STATE_CHANNEL;
+				userData->isState = STATE_CHANNEL;
 			break;
 		}
 		case ANSWER_CREATE_ROOM:
 		{
+			allMessage.clear();
 			AnswerCreateRoomPacket* recvPacket = reinterpret_cast<AnswerCreateRoomPacket*>(msg);
 			if (!recvPacket->isCreate)
 				break;
 			system("cls");
 			cout << "Room in" << endl;
-			playerData->roomNum = recvPacket->roomNum;
-			playerData->isState = STATE_ROOM;
+			userData->roomNum = recvPacket->roomNum;
+			userData->isState = STATE_CHATING;
 			break;
 		}
-		
+		case NOTIFY_CREATE_ROOM:
+		{
+			NotifyCreateRoomPacket* recvPacket = reinterpret_cast<NotifyCreateRoomPacket*>(msg);
+			channelData->roomNums.insert(recvPacket->roomNum);
+
+			system("cls");
+			set<short>::iterator iter;
+			for (iter = channelData->roomNums.begin(); iter != channelData->roomNums.end(); iter++)
+				cout << "Room " << *iter << endl;
+
+			if (channelData->roomNums.size() != 0)
+				cout << "1. Join room" << endl;
+			else cout << "No room" << endl;
+			cout << "2. Create room" << endl;
+			cout << "3. Channel Exit" << endl;
+			cout << ">> ";
+			break;
+		}
+		case ANSWER_JOIN_ROOM:
+		{
+			allMessage.clear();
+			AnswerJoinRoomPacket* recvPacket = reinterpret_cast<AnswerJoinRoomPacket*>(msg);
+			if (recvPacket->isJoin)
+			{
+				//userData->roomNum = recvPacket->roomNum;
+				UserData* pOtherUser = new UserData();
+				pOtherUser->isState = STATE_CHATING;
+				pOtherUser->channelNum = channelData->channelNum;
+				pOtherUser->roomNum = recvPacket->roomNum;
+				strcpy_s(pOtherUser->userName, MAX_USER_NAME, recvPacket->otherUserName);
+				otherUser.push_back(pOtherUser);
+
+				userData->isState = STATE_CHATING;
+				system("cls");
+				cout << "Chat Start" << endl << "User: " << pOtherUser->userName << endl;
+			}
+			break;
+		}
+		case NOTIFY_JOIN_NEW_PLAYER:
+		{
+			NotifyJoinNewUserPacket* recvPacket = reinterpret_cast<NotifyJoinNewUserPacket*>(msg);
+			UserData* pOtherUser = new UserData();
+			pOtherUser->isState = STATE_CHATING;
+			pOtherUser->channelNum = channelData->channelNum;
+			strcpy_s(pOtherUser->userName, MAX_USER_NAME, recvPacket->newUserName);
+			otherUser.push_back(pOtherUser);
+
+			userData->isState = STATE_CHATING;
+			cout << "Join " << endl << "User: " << pOtherUser->userName << endl;
+			break;
+		}
+		case NOTIFY_CHAT_ROOM:
+		{
+			NotifyChatRoomPacket* recvPacket = reinterpret_cast<NotifyChatRoomPacket*>(msg);
+			//cout << endl << recvPacket->userName << " : " << recvPacket->userMsg << endl;
+			system("cls");
+			allMessage += recvPacket->userName;
+			allMessage += " : ";
+			allMessage += recvPacket->userMsg;
+			allMessage += "\n";
+			cout << allMessage << endl;
+			cout << "Message : " << message << endl;
+			break;
+		}
+		case ANSWER_EXIT_ROOM:
+		{
+			AnswerExitRoomPacket* recvPacket = reinterpret_cast<AnswerExitRoomPacket*>(msg);
+			system("cls");
+
+			int usingRoomNum = (short)recvPacket->usingRoomNumSize;
+			if (usingRoomNum != 0)
+			{
+				for (int i = 0; i < usingRoomNum; i++)
+				{
+					cout << "Room " << recvPacket->usingRoomNum[i] << endl;
+					channelData->roomNums.insert(recvPacket->usingRoomNum[i]);
+				}
+			}
+			else
+			{
+				cout << "No room" << endl;
+			}
+			userData->isState = STATE_CHANNEL_IN;
+
+			break;
+		}
+		case NOTIFY_DELETE_ROOM:
+		{
+			NotifyDeleteRoomPacket* recvPacket = reinterpret_cast<NotifyDeleteRoomPacket*>(msg);
+			channelData->roomNums.erase(recvPacket->deleteRoomNum);
+			system("cls");
+			set<short>::iterator iter;
+			for (iter = channelData->roomNums.begin(); iter != channelData->roomNums.end(); iter++)
+				cout << "Room " << *iter << endl;
+
+			if (channelData->roomNums.size() != 0)
+				cout << "1. Join room" << endl;
+			else cout << "No room" << endl;
+			cout << "2. Create room" << endl;
+			cout << "3. Channel Exit" << endl;
+			cout << ">> ";
+			break;
+		}
+		case NOTIFY_EXIT_ROOM:
+		{
+			NotifyExitRoomPacket* recvPacket = reinterpret_cast<NotifyExitRoomPacket*>(msg);
+			cout << recvPacket->userName << "is  exit room" << endl;
+			break;
+		}
+		case ANSWER_EXIT_CHANNEL:
+		{
+			AnswerExitChannelPacket* recvPacket = reinterpret_cast<AnswerExitChannelPacket*>(msg);
+			short command = (short)recvPacket->commandType;
+
+			cout << endl;
+			channelData->channelNum = -1;
+			channelData->roomNums.clear();
+			for (int i = 0; i < MAX_CHANNEL; i++)
+			{
+				cout << i + 1 << " Channel - " << "User : " << (short)recvPacket->users[i]
+					<< " State : " << (short)recvPacket->channelState[i] << endl;
+			}
+			cout << endl;
+			userData->isState = STATE_CHANNEL;
+			break;
+		}
 		default:
 			msg[strLen] = 0;//문자열의 끝을 알리기 위해 설정
 			std::cout << ">>" << msg << '\n';
@@ -111,11 +234,11 @@ bool State_Nameing(WSABUF& dataBuf, SOCKET& hSocket, OVERLAPPED& overlapped)
 	if (!strcmp(name, "/exit")) return false;
 
 	char tmp_packet[1024] = { 0, };
-	TestPacket* sendPacket = (TestPacket*)tmp_packet;
+	RequestLoginPacket* sendPacket = (RequestLoginPacket*)tmp_packet;
 	sendPacket->commandType = (short)REQUEST_LOGIN;
 	strcpy_s(sendPacket->userName, MAX_USER_NAME, name);
 
-	dataBuf.len = sizeof(tmp_packet);
+	dataBuf.len = sizeof(RequestLoginPacket);
 	dataBuf.buf = tmp_packet;
 
 	if (WSASend(hSocket, &dataBuf, 1, &dummy, 0, &overlapped, NULL) == SOCKET_ERROR)
@@ -123,25 +246,7 @@ bool State_Nameing(WSABUF& dataBuf, SOCKET& hSocket, OVERLAPPED& overlapped)
 		if (WSAGetLastError() != WSA_IO_PENDING)
 			cout << "WSASend() error" << endl;
 	}
-	playerData->isState = STATE_WATTING;
-	return true;
-}
-
-bool State_Chating(WSABUF& dataBuf, SOCKET& hSocket, OVERLAPPED& overlapped)
-{
-	DWORD dummy = 0;
-	char message[1024] = { 0, };
-	cout << "Message : ";
-	cin >> message;
-	if (!strcmp(message, "/exit")) return false;
-
-	dataBuf.len = strlen(message);
-	dataBuf.buf = message;
-	if (WSASend(hSocket, &dataBuf, 1, &dummy, 0, &overlapped, NULL) == SOCKET_ERROR)
-	{
-		if (WSAGetLastError() != WSA_IO_PENDING)
-			cout << "WSASend() error" << endl;
-	}
+	userData->isState = STATE_WATTING;
 	return true;
 }
 
@@ -151,13 +256,13 @@ bool State_Channel(WSABUF& dataBuf, SOCKET& hSocket, OVERLAPPED& overlapped)
 	short channelNum = 0;
 	cout << "Select channel : ";
 	cin >> channelNum;
-	channelData->channelNum = channelNum-1;
-	playerData->channelNum = channelNum - 1;
+	channelData->channelNum = (short)channelNum - 1;
+	userData->channelNum = channelNum - 1;
 
 	char tmp_packet[1024] = { 0, };
 	RequestJoinChannelPacket* sendPacket = (RequestJoinChannelPacket*)tmp_packet;
 	sendPacket->commandType = (short)REQUEST_JOIN_CHANNEL;
-	sendPacket->channelNum = channelNum - 1;
+	sendPacket->channelNum = (short)channelNum - 1;
 
 	dataBuf.len = sizeof(RequestJoinChannelPacket);
 	dataBuf.buf = tmp_packet;
@@ -167,7 +272,7 @@ bool State_Channel(WSABUF& dataBuf, SOCKET& hSocket, OVERLAPPED& overlapped)
 		if (WSAGetLastError() != WSA_IO_PENDING)
 			cout << "WSASend() error" << endl;
 	}
-	playerData->isState = STATE_WATTING;
+	userData->isState = STATE_WATTING;
 	return true;
 }
 
@@ -178,6 +283,7 @@ bool State_Channel_In(WSABUF& dataBuf, SOCKET& hSocket, OVERLAPPED& overlapped)
 	if (channelData->roomNums.size() != 0)
 		cout << "1. Join room" << endl;
 	cout << "2. Create room" << endl;
+	cout << "3. Channel Exit" << endl;
 	cout << ">> ";
 	cin >> commandNum;
 
@@ -202,9 +308,18 @@ bool State_Channel_In(WSABUF& dataBuf, SOCKET& hSocket, OVERLAPPED& overlapped)
 		char tmp_packet[1024] = { 0, };
 		RequestCreateRoomPacket* sendPacket = (RequestCreateRoomPacket*)tmp_packet;
 		sendPacket->commandType = (short)REQUEST_CREATE_ROOM;
-		sendPacket->channelNum = playerData->channelNum;
+		sendPacket->channelNum = userData->channelNum;
 
 		dataBuf.len = sizeof(RequestCreateRoomPacket);
+		dataBuf.buf = tmp_packet;
+	}
+
+	else if (commandNum == 3)
+	{
+		char tmp_packet[1024] = { 0, };
+		RequestExitChannelPacket* sendPacket = (RequestExitChannelPacket*)tmp_packet;
+		sendPacket->commandType = (short)REQUEST_EXIT_CHANNEL;
+		dataBuf.len = sizeof(RequestExitChannelPacket);
 		dataBuf.buf = tmp_packet;
 	}
 	
@@ -214,10 +329,47 @@ bool State_Channel_In(WSABUF& dataBuf, SOCKET& hSocket, OVERLAPPED& overlapped)
 			cout << "WSASend() error" << endl;
 	}
 
-	playerData->isState = STATE_WATTING;
+	userData->isState = STATE_WATTING;
 	return true;
 }
 
+bool State_Chating(WSABUF& dataBuf, SOCKET& hSocket, OVERLAPPED& overlapped)
+{
+	DWORD dummy = 0;
+	*message = { 0, };
+	cout << "Message : ";
+	cin >> message;
+
+	if (!strcmp(message, "/exit"))
+	{
+		char tmp_packet[1024] = { 0, };
+		RequestExitRoomPacket* sendPacket = (RequestExitRoomPacket*)tmp_packet;
+		sendPacket->commandType = (short)REQUEST_EXIT_ROOM;
+		strcpy_s(sendPacket->userName, userData->userName);
+		userData->roomNum = 0;
+		userData->isState = STATE_WATTING;
+		system("cls");
+
+		dataBuf.len = sizeof(RequestExitRoomPacket);
+		dataBuf.buf = tmp_packet;
+	}
+	else
+	{
+		char tmp_packet[1024] = { 0, };
+		RequestChatRoomPacket* sendPacket = (RequestChatRoomPacket*)tmp_packet;
+		sendPacket->commandType = (short)REQUEST_CHAT_ROOM;
+		strcpy_s(sendPacket->userMsg, MAX_USER_NAME, message);
+
+		dataBuf.len = sizeof(RequestChatRoomPacket);
+		dataBuf.buf = tmp_packet;
+	}
+	if (WSASend(hSocket, &dataBuf, 1, &dummy, 0, &overlapped, NULL) == SOCKET_ERROR)
+	{
+		if (WSAGetLastError() != WSA_IO_PENDING)
+			cout << "WSASend() error" << endl;
+	}
+	return true;
+}
 
 void main()
 {
@@ -258,13 +410,13 @@ void main()
 	HANDLE recvThread = (HANDLE)_beginthreadex(NULL, 0, RecvMsg, (void*)&hSocket, 0, NULL);
 	cout << "Connected!" << endl;
 
-	playerData = new PlayerData();
+	userData = new UserData();
 	channelData = new ChannelData();
-	otherPlayer.clear();
+	otherUser.clear();
 
 	while (true)
 	{
-		switch (playerData->isState)
+		switch (userData->isState)
 		{
 		case STATE_NAMEING:
 			State_Nameing(dataBuf, hSocket, overlapped);
@@ -276,13 +428,11 @@ void main()
 			cout << "Waitting" << endl;
 			Sleep(500 * 2);
 			break;
-		case STATE_CHATING:
-			State_Chating(dataBuf, hSocket, overlapped);
-			break;
 		case STATE_CHANNEL_IN:
 			State_Channel_In(dataBuf, hSocket, overlapped);
 			break;
-		case STATE_ROOM:
+		case STATE_CHATING:
+			State_Chating(dataBuf, hSocket, overlapped);
 			break;
 		}
 	}

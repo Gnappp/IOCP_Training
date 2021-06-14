@@ -19,28 +19,30 @@ public:
 	set<short> roomNums;
 	ChannelData()
 	{
-		channelNum = 0;
+		channelNum = -1;
 		roomNums.clear();
 	}
 };
 
-class PlayerData
+class UserData
 {
 public:
 	short isState;
 	char userName[MAX_USER_NAME];
 	short channelNum;
 	short roomNum;
-	PlayerData()
+	UserData()
 	{
 		isState = STATE_NAMEING;
 		ZeroMemory(userName, MAX_USER_NAME);
 	}
 };
 
-PlayerData* playerData;
-vector<PlayerData*> otherPlayer;
+UserData* userData;
+vector<UserData*> otherUser;
 ChannelData* channelData;
+char message[BUF_SIZE] = { 0, };
+string allMessage;
 
 bool State_Chating(WSABUF& dataBuf, SOCKET& hSocket, OVERLAPPED& overlapped);
 bool State_Nameing(WSABUF& dataBuf, SOCKET& hSocket, OVERLAPPED& overlapped);

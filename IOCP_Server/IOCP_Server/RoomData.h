@@ -17,4 +17,5 @@ public:
 
 	RoomData(short newRoomNum, UserData& userData, short channelNum);
 	bool JoinRoom(short iRoomNum, UserData& joinUserIndex);
+	void ExitRoom(short iRoomNum, UserData& exitUserIndex);
 };

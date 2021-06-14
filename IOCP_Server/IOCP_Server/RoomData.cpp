@@ -26,3 +26,16 @@ bool RoomData::JoinRoom(short iRoomNum, UserData& joinUserData)
 	else
 		return false;
 }
+
+void RoomData::ExitRoom(short iRoomNum, UserData& exitUserIndex)
+{
+	if (roomNum != iRoomNum)
+		return;
+
+	map<int, UserData*>::iterator iter_findUser = userDatas.find(exitUserIndex.userIndex);
+	if (iter_findUser != userDatas.end())
+	{
+		userDatas.erase(userDatas.find(exitUserIndex.userIndex));
+		isFull = false;
+	}
+}

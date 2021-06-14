@@ -126,16 +126,32 @@ void WorkingCommand(SocketData& sockData)
 	}
 	else
 	{
+		CopyMemory(&commandType, sockData.bufEnd, sizeof(short));
 		sockData.bufEnd += sockData.byteSize;
-		CopyMemory(&commandType, sockData.bufRecvData , sizeof(short));
-		cout << "Command Type : " << commandType << endl;
+		
+		cout << sockData.userSockIndex <<"  Command Type : " << commandType << endl;
 		switch (commandType)
 		{
 		case REQUEST_LOGIN:
 		{
-			TestPacket* packet = reinterpret_cast<TestPacket*>(sockData.bufRecvData);
+			RequestLoginPacket* packet = reinterpret_cast<RequestLoginPacket*>(sockData.bufRecvData);
 			strcpy_s(sockData.userData->userName, MAX_USER_NAME, packet->userName);
 			cout << sockData.userSockIndex << " : " << packet->userName << endl;
+
+			sockData.userData->userIndex = rand();
+			if (mUserDatas.find(sockData.userData->userIndex) != mUserDatas.end())
+			{
+				sockData.userData->userIndex = rand();
+				while (1)
+				{
+					if (mUserDatas.find(sockData.userData->userIndex) != mUserDatas.end())
+						sockData.userData->userIndex = rand();
+					else
+						break;
+				}
+			}
+			mUserDatas.insert(make_pair(sockData.userData->userIndex, *sockData.userData));
+			sockData.userData->isWhere = CHANNEL_SELECT;
 
 			char tmp_packet[1024] = { 0, };
 			AnswerLoginPacket* sendPacket = (AnswerLoginPacket*)tmp_packet;
@@ -144,17 +160,11 @@ void WorkingCommand(SocketData& sockData)
 			{
 				sendPacket->channelState[i] = (short)ch[i].GetChannelState();
 			}
-			cout << endl;
 			for (int i = 0; i < MAX_CHANNEL; i++)
 			{
 				sendPacket->users[i] = (short)ch[i].userDatas.size();
 			}
-			cout << endl;
 			CopyMemory(sendPacket->userName, sockData.userData->userName, strlen(sockData.userData->userName));
-			sockData.userData->userIndex = rand();
-			mUserDatas.insert(make_pair(sockData.userData->userIndex, *sockData.userData));
-			sockData.userData->isWhere = CHANNEL_SELECT;
-
 			sockData.sendData = tmp_packet;
 			sockData.byteSize = sizeof(AnswerLoginPacket);
 			PostSend(sockData);
@@ -167,26 +177,36 @@ void WorkingCommand(SocketData& sockData)
 			char tmp_packet[1024] = { 0, };
 			AnswerJoinChannelPacket* sendPacket = (AnswerJoinChannelPacket*)tmp_packet;
 			sendPacket->commandType = (short)ANSWER_JOIN_CHANNEL;
+			cout << "Channel No "<<(short)recvPacket->channelNum << endl;
+
 			if (ch[recvPacket->channelNum].GetChannelState() != CHANNEL_USER_FULL)
 			{
-				ch[recvPacket->channelNum].userDatas.insert(make_pair(sockData.userData->userIndex,sockData.userData));
-				sockData.userData->channalNum = recvPacket->channelNum;
+				if (!ch[recvPacket->channelNum].userDatas.insert(make_pair(sockData.userData->userIndex, sockData.userData)).second)
+				{
+					cout << sockData.userData->userName << " Channel join falied" << endl;
+					break;
+				}
+				sockData.userData->channelNum = recvPacket->channelNum;
 				sockData.userData->isWhere = ROOM_SELECT;
 
 				sendPacket->isSuccess = true;
 				sendPacket->usingRoomNumSize = ch[recvPacket->channelNum].usingRoomNum.size();
-				int i = 0;
-				set<short>::iterator iter;
-				for (iter = ch[recvPacket->channelNum].usingRoomNum.begin(); iter != ch[recvPacket->channelNum].usingRoomNum.end(); iter++)
-				{
-					sendPacket->usingRoomNum[i] = *iter;
-					i++;
-				}
 			}
 			else
 			{
 				sendPacket->isSuccess = false;
 				sendPacket->usingRoomNumSize = 0;
+			}
+			sendPacket->usingRoomNumSize = ch[recvPacket->channelNum].usingRoomNum.size();
+			int i = 0;
+			set<short>::iterator iter;
+			for (iter = ch[recvPacket->channelNum].usingRoomNum.begin(); iter != ch[recvPacket->channelNum].usingRoomNum.end(); iter++)
+			{
+				if (!ch[recvPacket->channelNum].roomDatas.find(*iter)->second->isFull) //풀방 생략
+				{
+					sendPacket->usingRoomNum[i] = *iter;
+					i++;
+				}
 			}
 			cout << "Requset Join Channel, channel No : " << recvPacket->channelNum <<  endl;
 			sockData.sendData = tmp_packet;
@@ -194,19 +214,41 @@ void WorkingCommand(SocketData& sockData)
 			PostSend(sockData);
 			break;
 		}
+		case REQUEST_EXIT_CHANNEL:
+		{
+			sockData.userData->isWhere = CHANNEL_SELECT;
+			ch[sockData.userData->channelNum].userDatas.erase(ch[sockData.userData->channelNum].userDatas.find(sockData.userData->userIndex));
+
+			char tmp_packet[1024] = { 0, };
+			AnswerExitChannelPacket* sendPacket = (AnswerExitChannelPacket*)tmp_packet;
+			sendPacket->commandType = (short)ANSWER_EXIT_CHANNEL;
+			for (int i = 0; i < MAX_CHANNEL; i++)
+			{
+				sendPacket->channelState[i] = (short)ch[i].GetChannelState();
+			}
+			for (int i = 0; i < MAX_CHANNEL; i++)
+			{
+				sendPacket->users[i] = (short)ch[i].userDatas.size();
+			}
+			sockData.sendData = tmp_packet;
+			sockData.byteSize = sizeof(AnswerExitChannelPacket);
+			PostSend(sockData);
+			break;
+		}
 		case REQUEST_CREATE_ROOM:
 		{
 			RequestCreateRoomPacket* recvPacket = reinterpret_cast<RequestCreateRoomPacket*>(sockData.bufRecvData);
 			bool isCreate = false;
-			short roomNum = ch[sockData.userData->channalNum].CreateRoom(*sockData.userData);
+			short roomNum = ch[sockData.userData->channelNum].CreateRoom(*sockData.userData);
 			if (roomNum != 0)
 			{
 				sockData.userData->roomNum = roomNum;
+				sockData.userData->isWhere = ROOM_IN;
 				isCreate = true;
 			}
 			else
 				isCreate = false;
-
+			
 			char tmp_packet[1024] = { 0, };
 			AnswerCreateRoomPacket* sendPacket = (AnswerCreateRoomPacket*)tmp_packet;
 			sendPacket->commandType = ANSWER_CREATE_ROOM;
@@ -214,11 +256,11 @@ void WorkingCommand(SocketData& sockData)
 			sendPacket->roomNum = roomNum;
 			if (isCreate)
 			{
-				sockData.userData->isWhere = ROOM_IN;
-				for (map<int, UserData*>::iterator iter = ch[sockData.userData->channalNum].userDatas.begin();
-					iter != ch[sockData.userData->channalNum].userDatas.end(); iter++)
+				map<int, UserData*>::iterator iter;
+				for (iter = ch[sockData.userData->channelNum].userDatas.begin();
+					iter != ch[sockData.userData->channelNum].userDatas.end(); iter++)
 				{
-					if (iter->second->userIndex == sockData.userData->userIndex)
+					if (iter->second->userIndex == sockData.userData->userIndex || iter->second->isWhere == ROOM_IN)
 						continue;
 					else // 같은 채널 사용자에게 보내주기
 					{
@@ -226,13 +268,13 @@ void WorkingCommand(SocketData& sockData)
 						NotifyCreateRoomPacket* notifyPacket = (NotifyCreateRoomPacket*)tmp_notify;
 						notifyPacket->commandType = NOTIFY_CREATE_ROOM;
 						notifyPacket->roomNum = roomNum;
-						vSocketData[iter->second->userSockIndex]->sendData=tmp_notify;
+						vSocketData[iter->second->userSockIndex]->sendData = tmp_notify;
 						vSocketData[iter->second->userSockIndex]->byteSize = sizeof(NotifyCreateRoomPacket);
 						PostSend(*vSocketData[iter->second->userSockIndex]);
 					}
 				}
 			}
-			cout << "Requset Create Room, isCreate : " << isCreate << endl;
+			cout << "Requset Create Room, isCreate : " << isCreate  << " Room Num : "<< roomNum<< endl;
 			sockData.sendData = tmp_packet;
 			sockData.byteSize = sizeof(AnswerCreateRoomPacket);
 			PostSend(sockData);
@@ -242,7 +284,7 @@ void WorkingCommand(SocketData& sockData)
 		{
 			RequsetJoinRoomPacket* recvPacket = reinterpret_cast<RequsetJoinRoomPacket*>(sockData.bufRecvData);
 			bool isJoin = false;
-			isJoin = ch[sockData.userData->channalNum].JoinRoom(recvPacket->roomNum, *sockData.userData);
+			isJoin = ch[sockData.userData->channelNum].JoinRoom(recvPacket->roomNum, *sockData.userData);
 
 			char tmp_packet[1024] = { 0, };
 			AnswerJoinRoomPacket* sendPacket = (AnswerJoinRoomPacket*)tmp_packet;
@@ -252,27 +294,27 @@ void WorkingCommand(SocketData& sockData)
 			if (isJoin)
 			{
 				sockData.userData->isWhere = ROOM_IN;
-				map<int, RoomData*>::iterator iter_RoomUserData = ch[sockData.userData->channalNum].roomDatas.find(sockData.userData->roomNum);
+				sockData.userData->roomNum = recvPacket->roomNum;
+				map<int, RoomData*>::iterator iter_RoomUserData = ch[sockData.userData->channelNum].roomDatas.find(sockData.userData->roomNum);
 				map<int, UserData*>::iterator iter_UserData;
 				for (iter_UserData = iter_RoomUserData->second->userDatas.begin(); iter_UserData != iter_RoomUserData->second->userDatas.end(); iter_UserData++)
 				{
 					if (iter_UserData->second->userIndex != sockData.userData->userIndex)
 					{
-						sendPacket->otherUserIndex = iter_UserData->second->userIndex;
 						CopyMemory(sendPacket->otherUserName, iter_UserData->second->userName, strlen(iter_UserData->second->userName));
 
 						char tmp_notify[1024] = { 0, };
-						NotifyJoinNewPlayerPacket* notifyPacket = (NotifyJoinNewPlayerPacket*)tmp_notify;
+						NotifyJoinNewUserPacket* notifyPacket = (NotifyJoinNewUserPacket*)tmp_notify;
 						notifyPacket->commandType = NOTIFY_JOIN_NEW_PLAYER;
-						CopyMemory(notifyPacket->newPlayerName, sockData.userData->userName, strlen(sockData.userData->userName));
+						CopyMemory(notifyPacket->newUserName, sockData.userData->userName, strlen(sockData.userData->userName));
 						vSocketData[iter_UserData->second->userSockIndex]->sendData = tmp_notify;
-						vSocketData[iter_UserData->second->userSockIndex]->byteSize = sizeof(NotifyJoinNewPlayerPacket);
+						vSocketData[iter_UserData->second->userSockIndex]->byteSize = sizeof(NotifyJoinNewUserPacket);
 						PostSend(*vSocketData[iter_UserData->second->userSockIndex]);
 					}
 				}
 			}
 			sockData.sendData = tmp_packet;
-			sockData.byteSize = sizeof(AnswerCreateRoomPacket);
+			sockData.byteSize = sizeof(AnswerJoinRoomPacket);
 			PostSend(sockData);
 			break;
 		}
@@ -282,33 +324,108 @@ void WorkingCommand(SocketData& sockData)
 			{
 				char userMsg[MAX_MSG_SIZE] = { 0, };
 				char chatUserName[MAX_USER_NAME] = { 0, };
-				RequestChatRoom* recvPacket = reinterpret_cast<RequestChatRoom*>(sockData.bufRecvData);
+				RequestChatRoomPacket* recvPacket = reinterpret_cast<RequestChatRoomPacket*>(sockData.bufRecvData);
 				CopyMemory(userMsg, recvPacket->userMsg, strlen(recvPacket->userMsg));
 
-				map<int, RoomData*>::iterator iter_RoomUserData = ch[sockData.userData->channalNum].roomDatas.find(sockData.userData->roomNum);
+				map<int, RoomData*>::iterator iter_RoomUserData = ch[sockData.userData->channelNum].roomDatas.find(sockData.userData->roomNum);
 				map<int, UserData*>::iterator iter_UserData;
 				for (iter_UserData = iter_RoomUserData->second->userDatas.begin(); iter_UserData != iter_RoomUserData->second->userDatas.end(); iter_UserData++)
 				{
 					if (iter_UserData->second->userIndex != sockData.userData->userIndex)
 					{
 						char tmp_notify[1024] = { 0, };
-						NotifyChatRoom* notifyPacket = (NotifyChatRoom*)tmp_notify;
+						NotifyChatRoomPacket* notifyPacket = (NotifyChatRoomPacket*)tmp_notify;
 						notifyPacket->commandType = NOTIFY_CHAT_ROOM;
 						CopyMemory(notifyPacket->userName, sockData.userData->userName, strlen(sockData.userData->userName));
 						CopyMemory(notifyPacket->userMsg, recvPacket->userMsg, strlen(recvPacket->userMsg));
 
 						vSocketData[iter_UserData->second->userSockIndex]->sendData = tmp_notify;
-						vSocketData[iter_UserData->second->userSockIndex]->byteSize = sizeof(NotifyChatRoom);
+						vSocketData[iter_UserData->second->userSockIndex]->byteSize = sizeof(NotifyChatRoomPacket);
 						PostSend(*vSocketData[iter_UserData->second->userSockIndex]);
 					}
 				}
 			}
 			break;
 		}
+		case REQUEST_EXIT_ROOM:
+		{
+			RequestExitRoomPacket* recvPacket = reinterpret_cast<RequestExitRoomPacket*>(sockData.bufRecvData);
+			map<int, RoomData*>::iterator iter_RoomUserData = ch[sockData.userData->channelNum].roomDatas.find(sockData.userData->roomNum);
+			map<int, UserData*>::iterator iter_UserData;
+			iter_RoomUserData->second->ExitRoom(sockData.userData->roomNum, *sockData.userData);
+
+			if (sockData.userData->isWhere == ROOM_IN) //방에서 나왔을때
+			{
+				if (ch[sockData.userData->channelNum].DeleteRoom(sockData.userData->roomNum))
+				{ //나왔는데 방이 없어졌을때 채널에 알리기
+					
+					for (iter_UserData = ch[sockData.userData->channelNum].userDatas.begin();
+						iter_UserData != ch[sockData.userData->channelNum].userDatas.end(); iter_UserData++)
+					{
+						if (iter_UserData->second->userIndex == sockData.userData->userIndex ||
+							iter_UserData->second->isWhere == ROOM_IN)
+							continue;
+						else
+						{
+							char tmp_notify[1024] = { 0, };
+							NotifyDeleteRoomPacket* notifyPacket = (NotifyDeleteRoomPacket*)tmp_notify;
+							notifyPacket->commandType = (short)NOTIFY_DELETE_ROOM;
+							notifyPacket->deleteRoomNum = sockData.userData->roomNum;
+							vSocketData[iter_UserData->second->userSockIndex]->sendData = tmp_notify;
+							vSocketData[iter_UserData->second->userSockIndex]->byteSize = sizeof(NotifyDeleteRoomPacket);
+							PostSend(*vSocketData[iter_UserData->second->userSockIndex]);
+						}
+					}
+				}
+				else
+				{ //방에 있는 사람들에게 나간것 알리기
+					for (iter_UserData = iter_RoomUserData->second->userDatas.begin(); 
+						iter_UserData != iter_RoomUserData->second->userDatas.end(); iter_UserData++)
+					{ 
+						if (iter_UserData->second->userIndex == sockData.userData->userIndex ||
+							iter_UserData->second->isWhere == ROOM_IN)
+							continue;
+						else
+						{
+							char tmp_notify[1024] = { 0, };
+							NotifyExitRoomPacket* notifyPacket = (NotifyExitRoomPacket*)tmp_notify;
+							notifyPacket->commandType = (short)NOTIFY_EXIT_ROOM;
+							CopyMemory(notifyPacket->userName, sockData.userData->userName, strlen(sockData.userData->userName));
+							vSocketData[iter_UserData->second->userSockIndex]->sendData = tmp_notify;
+							vSocketData[iter_UserData->second->userSockIndex]->byteSize = sizeof(NotifyExitRoomPacket);
+							PostSend(*vSocketData[iter_UserData->second->userSockIndex]);
+						}
+					}
+					
+				}
+				char tmp_packet[1024] = { 0, };
+				AnswerExitRoomPacket* sendPacket = (AnswerExitRoomPacket*)tmp_packet;
+				sendPacket->commandType = (short)ANSWER_EXIT_ROOM;
+				sendPacket->usingRoomNumSize = ch[sockData.userData->channelNum].usingRoomNum.size();
+				int i = 0;
+				set<short>::iterator iter;
+				for (iter = ch[sockData.userData->channelNum].usingRoomNum.begin(); iter != ch[sockData.userData->channelNum].usingRoomNum.end(); iter++)
+				{
+					if (!ch[sockData.userData->channelNum].roomDatas.find(*iter)->second->isFull) //풀방 생략
+					{
+						sendPacket->usingRoomNum[i] = *iter;
+						i++;
+					}
+				}
+				sockData.userData->isWhere = ROOM_SELECT;
+				sockData.userData->roomNum = 0;
+				sockData.byteSize = sizeof(AnswerExitRoomPacket);
+				sockData.sendData = tmp_packet;
+				PostSend(sockData);
+			}
+		}
 		default:
 			cout << (short)(sockData.bufRecvData[0] + sockData.bufRecvData[1]) << endl;
 			break;
 		}
+		memset(sockData.bufRecvData, '\0', sizeof(sockData.bufRecvData));
+		sockData.byteSize = 0;
+		sockData.bufEnd = &sockData.bufRecvData[0];
 		PostRead(sockData);
 	}
 }
@@ -345,6 +462,7 @@ void PostRead(SocketData& sockData)
 	sockData.byteSize = &sockData.bufRecvData[BUF_SIZE] - sockData.bufEnd;
 	sockData.recvBuf.len = sockData.byteSize;
 	sockData.recvBuf.buf = sockData.bufEnd;
+	//cout << &sockData.bufRecvData[BUF_SIZE] - sockData.bufEnd << "  " << sockData.byteSize << endl;
 	sockData.recvFlag = 0;
 	result = WSARecv(sockData.sock, &sockData.recvBuf, 1, &sockData.byteSize, &sockData.recvFlag, (OVERLAPPED*)&sockData.recvOverLap, 0);
 

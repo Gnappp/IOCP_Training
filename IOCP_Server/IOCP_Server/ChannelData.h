@@ -25,4 +25,5 @@ public:
 
 	short CreateRoom(UserData& userData);
 	bool JoinRoom(short roomNum, UserData& userData);
+	bool DeleteRoom(short roomNum);
 };
