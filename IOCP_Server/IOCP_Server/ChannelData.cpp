@@ -1,4 +1,6 @@
 #include "ChannelData.h"
+#include "RoomData.h"
+#include "UserData.h"
 
 ChannelData::ChannelData(int channelNum)
 {

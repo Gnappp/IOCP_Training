@@ -1,6 +1,4 @@
 #pragma once
-#include "UserData.h"
-#include "RoomData.h"
 #include "Define.h"
 
 #include <set>
@@ -9,16 +7,18 @@
 #include <iostream>
 using namespace std;
 
+class UserData;
+class RoomData;
 
 class ChannelData
 {
 public:
 	short channelState;
 	short channelNum;
-	map<int, UserData*> userDatas; // map으로 유저 관리해야할듯
+	map<int,UserData*> userDatas; // 채널의 유저시리얼 관리
+	map<short, RoomData*> roomDatas;
 	set<short> usingRoomNum;
 	vector<short> notuseRoomNum; 
-	map<int, RoomData*> roomDatas;
 
 	ChannelData(int channelNum);
 	short GetChannelState();
