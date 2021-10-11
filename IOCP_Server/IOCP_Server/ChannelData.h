@@ -13,10 +13,10 @@ class RoomData;
 class ChannelData
 {
 public:
-	short channelState;
-	short channelNum;
+	int channelState;
+	int channelNum;
 	map<int,UserData*> userDatas; // 채널의 유저시리얼 관리
-	map<short, RoomData*> roomDatas;
+	map<int, RoomData*> roomDatas;
 	set<short> usingRoomNum;
 	vector<short> notuseRoomNum; 
 

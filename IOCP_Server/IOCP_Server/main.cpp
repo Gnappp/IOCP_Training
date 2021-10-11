@@ -3,18 +3,18 @@
 #include "Define.h"
 #include "SocketInfo.h"
 #include "ChannelData.h"
+#include <iostream>
 
-IocpMain* iocpMain;
+using namespace std;
 
 int main()
 {
-	iocpMain = new IocpMain;
+	IocpMain* iocpMain=nullptr;
 
 	int maxThreads = 4, port = 1500, maxSockets = 4;
 	int zero = 0;
-	
-	iocpMain->InitIOCP(maxThreads, maxSockets, port);
-	iocpMain->InitThreadPool(maxThreads);
+	iocpMain->GetInstance()->InitIOCP(maxThreads, maxSockets, port);
+	iocpMain->GetInstance()->InitThreadPool(maxThreads);
 	while (TRUE) {};
 	iocpMain->~IocpMain();
 

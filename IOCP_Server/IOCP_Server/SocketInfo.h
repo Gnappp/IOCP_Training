@@ -4,14 +4,15 @@
 #include <mswsock.h>
 #include <string>
 #include <process.h>
-
-#include "UserData.h"
+#include <queue>
+#include "Define.h"
 
 #pragma comment(lib, "ws2_32.lib") 
 #pragma comment(lib, "mswsock.lib")
 
 using namespace std;
 
+class UserData;
 
 enum SOCKET_STATE
 {
@@ -33,7 +34,7 @@ public:
 	SOCKET sock;
 	DWORD byteSize; //전송바이트
 	char bufRecvData[BUF_SIZE]; //recv하면 여기에 데이터가 들어옴
-	char* bufEnd;
+	
 	sockaddr_in mLocal, mRemote;
 	char* sendData;
 	WSABUF recvBuf, sendBuf;
@@ -41,6 +42,11 @@ public:
 	stOverlap recvOverLap, sendOverLap;
 	UserData* userData;
 	int userSockIndex;
+	//queue<UserPacketData> userPacketQueue;
+	char userPacketQueue[BUF_SIZE * 2];
+	queue<int> userPacketQueueSize;
+	char* queueFront;
+	char* queueEnd;
 
 	SocketData(SOCKET& listenSock, int iSock_num);
 

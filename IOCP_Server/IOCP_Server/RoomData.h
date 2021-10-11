@@ -2,10 +2,11 @@
 #include <vector>
 #include <map>
 
-#include "UserData.h"
 #include "Define.h"
 
 using namespace std;
+
+class UserData;
 
 class RoomData
 {

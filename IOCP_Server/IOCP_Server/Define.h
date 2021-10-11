@@ -1,5 +1,6 @@
 #pragma once
 #include <map>
+#include <functional>
 
 enum IS_WHERE
 {

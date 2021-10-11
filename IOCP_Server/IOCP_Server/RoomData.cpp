@@ -1,9 +1,10 @@
 #include "RoomData.h"
+#include "UserData.h"
 
 RoomData::RoomData(short newRoomNum, UserData& userData, short iChannelNum)
 {
 	roomNum = 0;
-	userDatas.clear();
+	//userDatas.clear();
 	channelNum = 0;
 	isFull = false;
 

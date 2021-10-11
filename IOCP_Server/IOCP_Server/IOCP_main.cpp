@@ -7,12 +7,22 @@
 #include "ServerData.h"
 #include "ThreadPool.h"
 
+IocpMain* IocpMain::inst = nullptr;
+
+IocpMain* IocpMain::GetInstance()
+{
+	if (inst == nullptr)
+		inst = new IocpMain();
+
+	return inst;
+}
+
 IocpMain::IocpMain()
 {
-	ch.clear();
-	rm.clear();
-	mUserDatas.clear();
-	vSocketData.clear(); //家南 单捞磐甸
+	//ch.clear();
+	//rm.clear();
+	//mUserDatas.clear();
+	//vSocketData.clear(); //家南 单捞磐甸
 	sockListen = INVALID_SOCKET;
 	threadPool=nullptr;
 	hAcceptIOCP = nullptr;
@@ -21,9 +31,9 @@ IocpMain::IocpMain()
 
 IocpMain::~IocpMain()
 {
-	for (int i = 0; i < ch.size(); i++)
-		delete(ch[i]);
-	for (set<RoomData* >::iterator iter = rm.begin(); iter != rm.end(); iter++)
+	for (int i = 0; i < MAX_CHANNEL; i++)
+		delete(&ch[i]);
+	for (vector<RoomData* >::iterator iter = rm.begin(); iter != rm.end(); iter++)
 		delete(&iter);
 	for (int i = 0; i < mUserDatas.size(); i++)
 		delete(mUserDatas[i]);
@@ -70,39 +80,38 @@ bool IocpMain::InitIOCP(int maxthreads, int maxsockets, int port)
 	//Create sockListen
 	SOCKADDR_IN addr;
 
-	iocpMain->sockListen = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	sockListen = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	addr.sin_family = AF_INET;
 	addr.sin_addr.s_addr = INADDR_ANY;
 	addr.sin_port = htons((short)port);
 	int result;
-	result = ::bind(iocpMain->sockListen, (sockaddr*)&addr, sizeof(addr));
+	result = ::bind(sockListen, (sockaddr*)&addr, sizeof(addr));
 	if (result == SOCKET_ERROR)
 		return 0;
-	if (listen(iocpMain->sockListen, 200) == SOCKET_ERROR)
+	if (listen(sockListen, 200) == SOCKET_ERROR)
 		return 0;
 
 	//Create accept Overlap structur
-	iocpMain->vSocketData.clear();
+	vSocketData.clear();
 	for (int i = 0; i < maxsockets; i++)
 	{
-		SocketData* sockData = new SocketData(iocpMain->sockListen, i);
+		SocketData* sockData = new SocketData(sockListen, i);
 		//InitOVERLAP(*pOverlap);
-		iocpMain->vSocketData.push_back(sockData);
+		vSocketData.push_back(sockData);
 	}
 
-	CreateIoCompletionPort((HANDLE)iocpMain->sockListen, iocpMain->hAcceptIOCP, 0, 0);
+	CreateIoCompletionPort((HANDLE)sockListen, hAcceptIOCP, 0, 0);
 
 	for (int i = 0; i < MAX_CHANNEL; i++)
 	{
-		ChannelData chData(i);
-		iocpMain->ch.push_back(&chData);
+		ch.push_back(new ChannelData(i));
 	}
-
-
 }
 
 bool IocpMain::InitThreadPool(int maxthreads)
 {
 	threadPool = new ThreadPool();
-	threadPool->InitTreadPool(maxthreads);
+	if (!threadPool->InitTreadPool(maxthreads))
+		return false;
+	return true;
 }

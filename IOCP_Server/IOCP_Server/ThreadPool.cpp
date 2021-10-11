@@ -1,4 +1,5 @@
 #include "ThreadPool.h"
+#include "SocketInfo.h"
 
 ThreadPool::ThreadPool()
 {
@@ -20,7 +21,7 @@ ThreadPool::~ThreadPool()
 
 bool ThreadPool::InitTreadPool(int threadNum_)
 {
-	threadNum = threadNum;
+	threadNum = threadNum_;
 	isStop = false;
 
 	vProcessWork.reserve(threadNum);
@@ -29,6 +30,7 @@ bool ThreadPool::InitTreadPool(int threadNum_)
 	{
 		vProcessWork.emplace_back([this]() { this->ProcessWorkThrad(); });
 	}
+	return true;
 }
 
 unsigned int __stdcall ThreadPool::ProcessWorkThrad()

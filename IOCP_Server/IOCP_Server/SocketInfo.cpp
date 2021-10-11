@@ -1,4 +1,5 @@
 #include "SocketInfo.h"
+#include "UserData.h"
 #include <iostream>
 #include <WinSock2.h> 
  
@@ -17,9 +18,11 @@ SocketData::SocketData(SOCKET& listenSock, int iSock_num)
 	if (userData != NULL)
 		free(userData);
 	userData = new UserData(iSock_num);
-	int userSockIndex = iSock_num;
+	userSockIndex = iSock_num;
+	ZeroMemory(userPacketQueue, BUF_SIZE * 2);
 
-	bufEnd = &bufRecvData[0];
+	queueEnd = &userPacketQueue[0];
+	queueFront = &userPacketQueue[0];
 	sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (sock == INVALID_SOCKET)
 		cout << "Fail create sock" << endl;
@@ -27,8 +30,7 @@ SocketData::SocketData(SOCKET& listenSock, int iSock_num)
 	setsockopt(sock, SOL_SOCKET, SO_RCVBUF, (char*)&zero, sizeof(zero));
 
 	sendOverLap.state = SEND;
-
 	recvOverLap.state = RECV;
 	recvOverLap.sockData = this;
-	AcceptEx(listenSock, sock, bufEnd, 0, sizeof(sockaddr_in) + 16, sizeof(sockaddr_in) + 16, &byteSize, (OVERLAPPED*)&recvOverLap);
+	AcceptEx(listenSock, sock, &bufRecvData[0], 0, sizeof(sockaddr_in) + 16, sizeof(sockaddr_in) + 16, &byteSize, (OVERLAPPED*)&recvOverLap);
 }

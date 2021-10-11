@@ -4,7 +4,7 @@
 
 ChannelData::ChannelData(int channelNum)
 {
-	this->channelNum=channelNum;
+	this->channelNum = channelNum;
 	channelState = 0;
 	userDatas.clear();
 	roomDatas.clear();
