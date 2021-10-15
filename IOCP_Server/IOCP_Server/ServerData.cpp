@@ -104,43 +104,43 @@ void WorkingCommand(SocketData& sockData)
 		//cout << sockData.userSockIndex << "  Command Type :" << commandType << endl;
 
 		UserPacketEnqueue(sockData);
-		CopyMemory(&commandType, sockData.queueFront, sizeof(short));
+		CopyMemory(&commandType, sockData.userPacketQueue.front().userPacket, sizeof(short));
 		cout << sockData.userSockIndex << "  Command Type :" << commandType << endl;
 		switch (commandType)
 		{
 			case REQUEST_LOGIN:
 			{
-				iocpMain->GetInstance()->threadPool->EnqueueWork([&sockData] {RequestLogin(sockData, sockData.userPacketQueueSize.front()); });
+				iocpMain->GetInstance()->threadPool->EnqueueWork([&sockData] {RequestLogin(sockData); });
 				break;
 			}
 			case REQUEST_JOIN_CHANNEL:
 			{
-				iocpMain->GetInstance()->threadPool->EnqueueWork([&sockData] {RequestJoinChannel(sockData, sockData.userPacketQueueSize.front()); });
+				iocpMain->GetInstance()->threadPool->EnqueueWork([&sockData] {RequestJoinChannel(sockData); });
 				break;
 			}
 			case REQUEST_EXIT_CHANNEL:
 			{
-				iocpMain->GetInstance()->threadPool->EnqueueWork([&sockData] {RequestExitChannel(sockData, sockData.userPacketQueueSize.front()); });
+				iocpMain->GetInstance()->threadPool->EnqueueWork([&sockData] {RequestExitChannel(sockData); });
 				break;
 			}
 			case REQUEST_CREATE_ROOM:
 			{
-				iocpMain->GetInstance()->threadPool->EnqueueWork([&sockData] {RequestCreateRoom(sockData, sockData.userPacketQueueSize.front()); });
+				iocpMain->GetInstance()->threadPool->EnqueueWork([&sockData] {RequestCreateRoom(sockData); });
 				break;
 			}
 			case REQUEST_JOIN_ROOM:
 			{
-				iocpMain->GetInstance()->threadPool->EnqueueWork([&sockData] {RequestJoinRoom(sockData, sockData.userPacketQueueSize.front()); });
+				iocpMain->GetInstance()->threadPool->EnqueueWork([&sockData] {RequestJoinRoom(sockData); });
 				break;
 			}
 			case REQUEST_CHAT_ROOM:
 			{
-				iocpMain->GetInstance()->threadPool->EnqueueWork([&sockData] {RequestChatRoom(sockData, sockData.userPacketQueueSize.front()); });
+				iocpMain->GetInstance()->threadPool->EnqueueWork([&sockData] {RequestChatRoom(sockData); });
 				break;
 			}
 			case REQUEST_EXIT_ROOM:
 			{
-				iocpMain->GetInstance()->threadPool->EnqueueWork([&sockData] {RequestExitRoom(sockData, sockData.userPacketQueueSize.front()); });
+				iocpMain->GetInstance()->threadPool->EnqueueWork([&sockData] {RequestExitRoom(sockData); });
 				break;
 			}
 			default:
@@ -154,51 +154,16 @@ void WorkingCommand(SocketData& sockData)
 
 bool UserPacketEnqueue(SocketData& sockData)
 {
-	if (sockData.queueEnd + sockData.byteSize > sockData.userPacketQueue + (BUF_SIZE * 2))
-	{
-		int extraSize, fullSize = 0;
-		extraSize = sockData.queueEnd + sockData.byteSize - (sockData.userPacketQueue + (BUF_SIZE * 2));
-		if (sockData.userPacketQueue + extraSize > sockData.queueFront)
-			return false;
-
-		fullSize = sockData.byteSize - extraSize;
-		memcpy(sockData.queueEnd, sockData.bufRecvData, fullSize);
-		memcpy(sockData.userPacketQueue, sockData.bufRecvData + fullSize, extraSize);
-		sockData.queueEnd = sockData.userPacketQueue + extraSize;
-		return true;
-	}
-	else
-	{
-		memcpy(sockData.queueEnd, sockData.bufRecvData, sockData.byteSize);
-		sockData.queueEnd = sockData.queueEnd + sockData.byteSize;
-
-		sockData.userPacketQueueSize.push(sockData.byteSize);
-	}
+	UserPacketData tmp_PacketData;
+	memcpy(tmp_PacketData.userPacket, sockData.bufRecvData, BUF_SIZE);
+	sockData.userPacketQueue.push(tmp_PacketData);
 	return true;
 }
 
-void UserPacketDequeue(SocketData& sockData, int packetSize)
+void UserPacketDequeue(SocketData& sockData)
 {
-	if (sockData.queueFront + packetSize > sockData.userPacketQueue + (BUF_SIZE * 2))
-	{
-		int extraSize, fullSize = 0;
-		extraSize = sockData.queueFront + packetSize - (sockData.userPacketQueue + (BUF_SIZE * 2));
-		if (sockData.userPacketQueue + extraSize > sockData.queueEnd)
-			return ;
-
-		fullSize = packetSize - extraSize;
-		sockData.queueFront = sockData.userPacketQueue + extraSize;
-
-		sockData.userPacketQueueSize.pop();
-		return ;
-	}
-	else
-	{
-		sockData.queueFront = sockData.queueFront + packetSize;
-
-		sockData.userPacketQueueSize.pop();
-		return;
-	}
+	sockData.userPacketQueue.pop();
+	return;
 }
 
 void PostSend(SocketData& sockData)
@@ -293,11 +258,11 @@ void ResetRecvBuff(SocketData& sockData)
 	//sockData.queueEnd = &sockData.bufRecvData[0];
 }
 
-void RequestLogin(SocketData& sockData, int packetSize)
+void RequestLogin(SocketData& sockData)
 {
 	char userPacket[1024] = { 0, };
-	memcpy(userPacket, sockData.queueFront, packetSize);
-	UserPacketDequeue(sockData, packetSize);
+	memcpy(userPacket, sockData.userPacketQueue.front().userPacket, BUF_SIZE);
+	UserPacketDequeue(sockData);
 	RequestLoginPacket* packet = reinterpret_cast<RequestLoginPacket*>(userPacket);
 	strcpy_s(sockData.userData->userName, MAX_USER_NAME, packet->userName);
 	cout << sockData.userSockIndex << " : " << packet->userName << endl;
@@ -334,11 +299,11 @@ void RequestLogin(SocketData& sockData, int packetSize)
 	PostSend(sockData);
 }
 
-void RequestJoinChannel(SocketData& sockData, int packetSize)
+void RequestJoinChannel(SocketData& sockData)
 {
 	char userPacket[1024] = { 0, };
-	memcpy(userPacket, sockData.queueFront, packetSize);
-	UserPacketDequeue(sockData, packetSize);
+	memcpy(userPacket, sockData.userPacketQueue.front().userPacket, BUF_SIZE);
+	UserPacketDequeue(sockData);
 	RequestJoinChannelPacket* recvPacket = reinterpret_cast<RequestJoinChannelPacket*>(userPacket);
 
 	char tmp_packet[1024] = { 0, };
@@ -386,11 +351,11 @@ void RequestJoinChannel(SocketData& sockData, int packetSize)
 	PostSend(sockData);
 }
 
-void RequestExitChannel(SocketData& sockData, int packetSize)
+void RequestExitChannel(SocketData& sockData)
 {
 	char userPacket[1024] = { 0, };
-	memcpy(userPacket, sockData.queueFront, packetSize);
-	UserPacketDequeue(sockData, packetSize);
+	memcpy(userPacket, sockData.userPacketQueue.front().userPacket, BUF_SIZE);
+	UserPacketDequeue(sockData);
 
 	sockData.userData->isWhere = CHANNEL_SELECT;
 	iocpMain->GetInstance()->ch[sockData.userData->channelNum]->
@@ -412,11 +377,11 @@ void RequestExitChannel(SocketData& sockData, int packetSize)
 	PostSend(sockData);
 }
 
-void RequestCreateRoom(SocketData& sockData, int packetSize)
+void RequestCreateRoom(SocketData& sockData)
 {
 	char userPacket[1024] = { 0, };
-	memcpy(userPacket, sockData.queueFront, packetSize);
-	UserPacketDequeue(sockData, packetSize);
+	memcpy(userPacket, sockData.userPacketQueue.front().userPacket, BUF_SIZE);
+	UserPacketDequeue(sockData);
 	RequestCreateRoomPacket* recvPacket = reinterpret_cast<RequestCreateRoomPacket*>(userPacket);
 	bool isCreate = false;
 	short roomNum = iocpMain->GetInstance()->ch[sockData.userData->channelNum]->CreateRoom(*sockData.userData);
@@ -460,11 +425,11 @@ void RequestCreateRoom(SocketData& sockData, int packetSize)
 	PostSend(sockData);
 }
 
-void RequestJoinRoom(SocketData& sockData, int packetSize)
+void RequestJoinRoom(SocketData& sockData)
 {
 	char userPacket[1024] = { 0, };
-	memcpy(userPacket, sockData.queueFront, packetSize);
-	UserPacketDequeue(sockData, packetSize);
+	memcpy(userPacket, sockData.userPacketQueue.front().userPacket, BUF_SIZE);
+	UserPacketDequeue(sockData);
 	RequsetJoinRoomPacket* recvPacket = reinterpret_cast<RequsetJoinRoomPacket*>(userPacket);
 	bool isJoin = false;
 	isJoin = iocpMain->GetInstance()->ch[sockData.userData->channelNum]->JoinRoom(recvPacket->roomNum, *sockData.userData);
@@ -502,15 +467,15 @@ void RequestJoinRoom(SocketData& sockData, int packetSize)
 	PostSend(sockData);
 }
 
-void RequestChatRoom(SocketData& sockData, int packetSize)
+void RequestChatRoom(SocketData& sockData)
 {
 	if (sockData.userData->isWhere == ROOM_IN)
 	{
 		char userMsg[MAX_MSG_SIZE] = { 0, };
 		char chatUserName[MAX_USER_NAME] = { 0, };
 		char userPacket[1024] = { 0, };
-		memcpy(userPacket, sockData.queueFront, packetSize);
-		UserPacketDequeue(sockData, packetSize);
+		memcpy(userPacket, sockData.userPacketQueue.front().userPacket, BUF_SIZE);
+		UserPacketDequeue(sockData);
 		RequestChatRoomPacket* recvPacket = reinterpret_cast<RequestChatRoomPacket*>(userPacket);
 		CopyMemory(userMsg, recvPacket->userMsg, strlen(recvPacket->userMsg));
 
@@ -535,11 +500,11 @@ void RequestChatRoom(SocketData& sockData, int packetSize)
 	}
 }
 
-void RequestExitRoom(SocketData& sockData, int packetSize)
+void RequestExitRoom(SocketData& sockData)
 {
 	char userPacket[1024] = { 0, };
-	memcpy(userPacket, sockData.queueFront, packetSize);
-	UserPacketDequeue(sockData, packetSize);
+	memcpy(userPacket, sockData.userPacketQueue.front().userPacket, BUF_SIZE);
+	UserPacketDequeue(sockData);
 	RequestExitRoomPacket* recvPacket = reinterpret_cast<RequestExitRoomPacket*>(userPacket);
 	map<int, RoomData*>::iterator iter_RoomUserData =
 		iocpMain->GetInstance()->ch[sockData.userData->channelNum]->roomDatas.find(sockData.userData->roomNum);

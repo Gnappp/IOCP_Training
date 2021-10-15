@@ -19,10 +19,7 @@ SocketData::SocketData(SOCKET& listenSock, int iSock_num)
 		free(userData);
 	userData = new UserData(iSock_num);
 	userSockIndex = iSock_num;
-	ZeroMemory(userPacketQueue, BUF_SIZE * 2);
 
-	queueEnd = &userPacketQueue[0];
-	queueFront = &userPacketQueue[0];
 	sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (sock == INVALID_SOCKET)
 		cout << "Fail create sock" << endl;

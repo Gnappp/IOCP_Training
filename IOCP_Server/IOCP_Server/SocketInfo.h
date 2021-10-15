@@ -27,6 +27,16 @@ typedef struct stOverlap
 	SocketData* sockData;
 }stOverlap;
 
+struct UserPacketData
+{
+	char userPacket[BUF_SIZE];
+	UserPacketData()
+	{
+		ZeroMemory(userPacket, BUF_SIZE);
+	}
+};
+
+
 class SocketData
 {
 public:
@@ -42,11 +52,7 @@ public:
 	stOverlap recvOverLap, sendOverLap;
 	UserData* userData;
 	int userSockIndex;
-	//queue<UserPacketData> userPacketQueue;
-	char userPacketQueue[BUF_SIZE * 2];
-	queue<int> userPacketQueueSize;
-	char* queueFront;
-	char* queueEnd;
+	queue<UserPacketData> userPacketQueue;
 
 	SocketData(SOCKET& listenSock, int iSock_num);
 

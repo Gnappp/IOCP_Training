@@ -259,7 +259,7 @@ bool State_Channel(WSABUF& dataBuf, SOCKET& hSocket, OVERLAPPED& overlapped)
 	channelData->channelNum = (short)channelNum - 1;
 	userData->channelNum = channelNum - 1;
 
-	char tmp_packet[1024] = { 0, };
+	char tmp_packet[1024] = { 0,};
 	RequestJoinChannelPacket* sendPacket = (RequestJoinChannelPacket*)tmp_packet;
 	sendPacket->commandType = (short)REQUEST_JOIN_CHANNEL;
 	sendPacket->channelNum = (short)channelNum - 1;
@@ -299,6 +299,7 @@ bool State_Channel_In(WSABUF& dataBuf, SOCKET& hSocket, OVERLAPPED& overlapped)
 		sendPacket->commandType = REQUEST_JOIN_ROOM;
 		sendPacket->roomNum = commandNum;
 
+		cout << "TYPE : " << sendPacket->commandType<< "  " << sendPacket->roomNum << endl;
 		dataBuf.len = sizeof(RequsetJoinRoomPacket);
 		dataBuf.buf = tmp_packet;
 	}
@@ -310,6 +311,7 @@ bool State_Channel_In(WSABUF& dataBuf, SOCKET& hSocket, OVERLAPPED& overlapped)
 		sendPacket->commandType = (short)REQUEST_CREATE_ROOM;
 		sendPacket->channelNum = userData->channelNum;
 
+		cout << "TYPE : " << sendPacket->commandType << endl;
 		dataBuf.len = sizeof(RequestCreateRoomPacket);
 		dataBuf.buf = tmp_packet;
 	}
@@ -319,6 +321,8 @@ bool State_Channel_In(WSABUF& dataBuf, SOCKET& hSocket, OVERLAPPED& overlapped)
 		char tmp_packet[1024] = { 0, };
 		RequestExitChannelPacket* sendPacket = (RequestExitChannelPacket*)tmp_packet;
 		sendPacket->commandType = (short)REQUEST_EXIT_CHANNEL;
+
+		cout << "TYPE : " << sendPacket->commandType << endl;
 		dataBuf.len = sizeof(RequestExitChannelPacket);
 		dataBuf.buf = tmp_packet;
 	}
