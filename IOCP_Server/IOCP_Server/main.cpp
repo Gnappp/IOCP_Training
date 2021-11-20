@@ -1,3 +1,4 @@
+#define _WINSOCKAPI_
 #include "IOCP_main.h"
 #include "ServerData.h"
 #include "Define.h"
@@ -13,11 +14,12 @@ int main()
 
 	int maxThreads = 4, port = 1500, maxSockets = 4;
 	int zero = 0;
+	// 서버 설정
 	iocpMain->GetInstance()->InitIOCP(maxThreads, maxSockets, port);
 	iocpMain->GetInstance()->InitThreadPool(maxThreads);
 	while (TRUE) {};
 	iocpMain->~IocpMain();
 
-	CloseHandle(iocpMain->hAcceptIOCP); // shut down winsock WSACleanup(); return 0;
+	CloseHandle(iocpMain->hAcceptIOCP); 
 	CloseHandle(iocpMain->hWorkerIOCP);
 }

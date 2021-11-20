@@ -1,25 +1,24 @@
 #pragma once
+#include "AllLib.h"
+#include "Define.h"
+
 #include <iostream> 
-#include <WinSock2.h> 
-#include <mswsock.h>
 #include <string>
 #include <process.h>
 #include <queue>
-#include "Define.h"
-
-#pragma comment(lib, "ws2_32.lib") 
-#pragma comment(lib, "mswsock.lib")
 
 using namespace std;
 
-class UserData;
+class UserData; 
+class SocketData;
 
+// 소켓의 용도
 enum SOCKET_STATE
 {
 	RECV, SEND
 };
 
-class SocketData;
+// OVERLAPPED를 사용하여 소켓정보 추가
 typedef struct stOverlap
 {
 	OVERLAPPED m_overlapped;
@@ -27,32 +26,21 @@ typedef struct stOverlap
 	SocketData* sockData;
 }stOverlap;
 
-struct UserPacketData
-{
-	char userPacket[BUF_SIZE];
-	UserPacketData()
-	{
-		ZeroMemory(userPacket, BUF_SIZE);
-	}
-};
-
-
 class SocketData
 {
 public:
 	BOOL isConnected;
 	SOCKET sock;
-	DWORD byteSize; //전송바이트
-	char bufRecvData[BUF_SIZE]; //recv하면 여기에 데이터가 들어옴
+	DWORD byteSize; // recv시 받은 바이트수
+	char bufRecvData[BUF_SIZE]; // recv시 받기위한 문자열
 	
 	sockaddr_in mLocal, mRemote;
 	char* sendData;
 	WSABUF recvBuf, sendBuf;
 	DWORD recvFlag;
-	stOverlap recvOverLap, sendOverLap;
-	UserData* userData;
-	int userSockIndex;
-	queue<UserPacketData> userPacketQueue;
+	stOverlap recvOverLap, sendOverLap; //recv, send 관리
+	UserData* userData; 
+	int userSockIndex; // 소켓번호
 
 	SocketData(SOCKET& listenSock, int iSock_num);
 

@@ -15,9 +15,11 @@ class ChannelData
 public:
 	int channelState;
 	int channelNum;
-	map<int,UserData*> userDatas; // 盲澄狼 蜡历矫府倔 包府
-	map<int, RoomData*> roomDatas;
-	set<short> usingRoomNum;
+	map<int,UserData*> userDatas; // 盲澄狼 蜡历 包府
+	map<int, RoomData*> roomDatas; // 积己等 规狼 包府
+
+	//规锅龋甫 包府
+	set<short> usingRoomNum; 
 	vector<short> notuseRoomNum; 
 
 	ChannelData(int channelNum);

@@ -1,15 +1,14 @@
 #pragma once
+#include "AllLib.h"
+
 #include <string>
 #include <vector>
 #include <process.h>
 #include <iostream> 
-#include <WinSock2.h> 
 #include <string>
 #include <map>
 #include <set>
 
-#pragma comment(lib, "ws2_32.lib") 
-#pragma comment(lib, "mswsock.lib")
 
 using namespace std;
 
@@ -23,6 +22,7 @@ typedef map<int, UserData*> USER_DATA;
 typedef vector<SocketData*> vecSocketData;
 typedef vecSocketData::iterator iter_vSocketData;
 
+// 채널, 방, 스레드, 유저 관리하는 클래스, 어디서든 접근가능할 수 있도록 싱글턴으로 생성
 class IocpMain
 {
 public:
@@ -32,7 +32,7 @@ public:
 	HANDLE hAcceptIOCP;
 	HANDLE hWorkerIOCP;
 	SOCKET sockListen;
-	vecSocketData vSocketData; //소켓 데이터들
+	vecSocketData vSocketData; // 소켓(유저) 데이터들
 	ThreadPool* threadPool;
 
 	~IocpMain();
@@ -43,10 +43,6 @@ public:
 	IocpMain* GetInstance();
 private:
 	IocpMain();
-	//bool InitIOCP(int maxthreads, int maxsokets, int port);
-	//bool InitThreadPool(int maxthreads);
 	static IocpMain* inst;
 };
-
- //static IocpMain* iocpMain;
 

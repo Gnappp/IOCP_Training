@@ -12,7 +12,7 @@ class RoomData
 {
 public:
 	short roomNum;
-	map<int, UserData*> userDatas; // map으로 관리해주어야한다.
+	map<int, UserData*> userDatas; // map으로 관리해주며 find로 찾기가 가능하다.
 	short channelNum;
 	bool isFull;
 

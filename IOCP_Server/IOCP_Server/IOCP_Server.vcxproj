@@ -102,6 +102,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <Optimization>Disabled</Optimization>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -139,16 +140,30 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="ADODB.cpp" />
     <ClCompile Include="ChannelData.cpp" />
+    <ClCompile Include="CircularQueue.cpp" />
+    <ClCompile Include="DBThreadPool.cpp" />
+    <ClCompile Include="ServerData.cpp" />
+    <ClCompile Include="main.cpp" />
     <ClCompile Include="RoomData.cpp" />
+    <ClCompile Include="SocketInfo.cpp" />
+    <ClCompile Include="ThreadPool.cpp" />
     <ClCompile Include="UserData.cpp" />
     <ClCompile Include="IOCP_main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="ADODB.h" />
+    <ClInclude Include="AllLib.h" />
     <ClInclude Include="ChannelData.h" />
+    <ClInclude Include="CircularQueue.h" />
+    <ClInclude Include="DBThreadPool.h" />
     <ClInclude Include="Define.h" />
     <ClInclude Include="Packets.h" />
     <ClInclude Include="RoomData.h" />
+    <ClInclude Include="ServerData.h" />
+    <ClInclude Include="SocketInfo.h" />
+    <ClInclude Include="ThreadPool.h" />
     <ClInclude Include="UserData.h" />
     <ClInclude Include="IOCP_main.h" />
   </ItemGroup>

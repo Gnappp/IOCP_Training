@@ -1,7 +1,8 @@
 #include "SocketInfo.h"
 #include "UserData.h"
 #include <iostream>
-#include <WinSock2.h> 
+#include "AllLib.h"
+//#include <WinSock2.h> 
  
 // 초기화할때 AcceptEx를 이용하여 리슨될때 생성한 소켓으로 갈 수 있게 해준다.
 // AcceptEx(리슨소켓, 만들어진넣을소켓, 수신된 데이터를 받을 버퍼[char []],	받을 데이터크기[int], 소켓 ip크기[int], 소켓 ip크기, 받은데이터 크기[DWORD], overlap 구조체

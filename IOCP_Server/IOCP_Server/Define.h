@@ -1,6 +1,7 @@
 #pragma once
 #include <map>
 #include <functional>
+#include <windows.h>
 
 enum IS_WHERE
 {
@@ -29,3 +30,26 @@ const int MAX_CHANNEL = 2;
 const int MAX_CHANNEL_USER = 30;
 const int MAX_ROOM_NUM = 50;
 const int MAX_MSG_SIZE = 900;
+
+class SocketData;
+// 유저 패킷큐에서 사용할 구조체
+struct UserPacketData
+{
+	char userPacket[BUF_SIZE];
+	SocketData* userSocketData;
+	UserPacketData()
+	{
+		ZeroMemory(userPacket, BUF_SIZE);
+	}
+};
+
+struct DbPacketData
+{
+	char qry[BUF_SIZE];
+	short qryType;
+	SocketData* userSocketData;
+	DbPacketData()
+	{
+		ZeroMemory(qry, BUF_SIZE);
+	}
+};

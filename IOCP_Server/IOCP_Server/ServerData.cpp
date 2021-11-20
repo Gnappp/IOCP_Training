@@ -6,7 +6,6 @@
 #include "ChannelData.h"
 #include "RoomData.h"
 #include "Packets.h"
-#include "Define.h"
 #include "UserData.h"
 
 IocpMain* iocpMain;
@@ -84,8 +83,6 @@ void WorkingCommand(SocketData& sockData)
 {
 	int localLen, remoteLen;
 	sockaddr_in* local = 0, * remote = 0;
-	short commandType = 0;
-
 
 	if (sockData.byteSize == SOCKET_ERROR)
 	{
@@ -99,54 +96,8 @@ void WorkingCommand(SocketData& sockData)
 	}
 	else
 	{
-		//CopyMemory(&commandType, sockData.queueFront, sizeof(short));
-		//sockData.queueEnd += sockData.byteSize;
-		//cout << sockData.userSockIndex << "  Command Type :" << commandType << endl;
-
 		UserPacketEnqueue(sockData);
-		CopyMemory(&commandType, sockData.userPacketQueue.front().userPacket, sizeof(short));
-		cout << sockData.userSockIndex << "  Command Type :" << commandType << endl;
-		switch (commandType)
-		{
-			case REQUEST_LOGIN:
-			{
-				iocpMain->GetInstance()->threadPool->EnqueueWork([&sockData] {RequestLogin(sockData); });
-				break;
-			}
-			case REQUEST_JOIN_CHANNEL:
-			{
-				iocpMain->GetInstance()->threadPool->EnqueueWork([&sockData] {RequestJoinChannel(sockData); });
-				break;
-			}
-			case REQUEST_EXIT_CHANNEL:
-			{
-				iocpMain->GetInstance()->threadPool->EnqueueWork([&sockData] {RequestExitChannel(sockData); });
-				break;
-			}
-			case REQUEST_CREATE_ROOM:
-			{
-				iocpMain->GetInstance()->threadPool->EnqueueWork([&sockData] {RequestCreateRoom(sockData); });
-				break;
-			}
-			case REQUEST_JOIN_ROOM:
-			{
-				iocpMain->GetInstance()->threadPool->EnqueueWork([&sockData] {RequestJoinRoom(sockData); });
-				break;
-			}
-			case REQUEST_CHAT_ROOM:
-			{
-				iocpMain->GetInstance()->threadPool->EnqueueWork([&sockData] {RequestChatRoom(sockData); });
-				break;
-			}
-			case REQUEST_EXIT_ROOM:
-			{
-				iocpMain->GetInstance()->threadPool->EnqueueWork([&sockData] {RequestExitRoom(sockData); });
-				break;
-			}
-			default:
-				cout << (short)(sockData.bufRecvData[0] + sockData.bufRecvData[1]) << endl;
-				break;
-		}
+		
 		ResetRecvBuff(sockData);
 		PostRead(sockData);
 	}
@@ -154,16 +105,11 @@ void WorkingCommand(SocketData& sockData)
 
 bool UserPacketEnqueue(SocketData& sockData)
 {
-	UserPacketData tmp_PacketData;
-	memcpy(tmp_PacketData.userPacket, sockData.bufRecvData, BUF_SIZE);
-	sockData.userPacketQueue.push(tmp_PacketData);
+	UserPacketData* tmp_PacketData = new UserPacketData;
+	memcpy(tmp_PacketData->userPacket, sockData.bufRecvData, BUF_SIZE);
+	tmp_PacketData->userSocketData = &sockData;
+	iocpMain->GetInstance()->threadPool->EnqueueWork(tmp_PacketData);
 	return true;
-}
-
-void UserPacketDequeue(SocketData& sockData)
-{
-	sockData.userPacketQueue.pop();
-	return;
 }
 
 void PostSend(SocketData& sockData)
@@ -185,20 +131,14 @@ void PostSend(SocketData& sockData)
 			CloseSocket(sockData, true);
 		}
 	}
-	//cout << "Postsend Success" << endl;
 }
 
 void PostRead(SocketData& sockData)
 {
 	BOOL result;
 
-	//if (sockData.queueEnd == &sockData.bufRecvData[BUF_SIZE])
-	//	sockData.queueEnd = &sockData.bufRecvData[0];
-
-	//sockData.byteSize = &sockData.bufRecvData[BUF_SIZE] - sockData.queueEnd;
 	sockData.recvBuf.len = BUF_SIZE;
 	sockData.recvBuf.buf = &sockData.bufRecvData[0];
-	//cout << &sockData.bufRecvData[BUF_SIZE] - sockData.queueEnd << "  " << sockData.byteSize << endl;
 	sockData.recvFlag = 0;
 	result = WSARecv(sockData.sock, &sockData.recvBuf, 1, &sockData.byteSize, &sockData.recvFlag, (OVERLAPPED*)&sockData.recvOverLap, 0);
 
@@ -215,28 +155,6 @@ void PostRead(SocketData& sockData)
 	}
 	return;
 }
-
-//bool DoEcho(SocketData& sockData)
-//{
-//	char buff[BUF_SIZE];
-//	memcpy(buff, sockData.bufRecvData, sockData.byteSize);
-//	buff[sockData.byteSize] = '\0';
-//	cout << sockData.userSockIndex << " : " << sockData.bufRecvData << endl;
-//	memset(sockData.bufRecvData, '\0', sizeof(sockData.bufRecvData));
-//	sockData.byteSize = 0;
-//	sockData.queueEnd = &sockData.bufRecvData[0];
-//	//Echo인 이유
-//	iter_vSocketData iter;
-//	for (iter = iocpMain->GetInstance()->vSocketData.begin(); iter != iocpMain->GetInstance()->vSocketData.end(); iter++)
-//	{
-//		if ((*iter)->recvOverLap.sockData->isConnected)
-//		{
-//			(*iter)->sendData = buff;
-//			PostSend(*(*iter));
-//		}
-//	}
-//	return true;
-//}
 
 void CloseSocket(SocketData& sockData, bool force, bool listenAgain)
 {
@@ -255,32 +173,29 @@ void ResetRecvBuff(SocketData& sockData)
 {
 	memset(sockData.bufRecvData, '\0', sizeof(sockData.bufRecvData));
 	sockData.byteSize = 0;
-	//sockData.queueEnd = &sockData.bufRecvData[0];
 }
 
-void RequestLogin(SocketData& sockData)
+void RequestLogin(UserPacketData* userPacketData)
 {
-	char userPacket[1024] = { 0, };
-	memcpy(userPacket, sockData.userPacketQueue.front().userPacket, BUF_SIZE);
-	UserPacketDequeue(sockData);
-	RequestLoginPacket* packet = reinterpret_cast<RequestLoginPacket*>(userPacket);
-	strcpy_s(sockData.userData->userName, MAX_USER_NAME, packet->userName);
-	cout << sockData.userSockIndex << " : " << packet->userName << endl;
+	SocketData* sockData = userPacketData->userSocketData;
+	RequestLoginPacket* packet = reinterpret_cast<RequestLoginPacket*>(userPacketData->userPacket);
+	strcpy_s(sockData->userData->userName, MAX_USER_NAME, packet->userName);
+	cout << sockData->userSockIndex << " : " << packet->userName << endl;
 
-	sockData.userData->userIndex = rand();
-	if (iocpMain->GetInstance()->mUserDatas.find(sockData.userData->userIndex) != iocpMain->GetInstance()->mUserDatas.end())
+	sockData->userData->userIndex = rand();
+	if (iocpMain->GetInstance()->mUserDatas.find(sockData->userData->userIndex) != iocpMain->GetInstance()->mUserDatas.end())
 	{
-		sockData.userData->userIndex = rand();
+		sockData->userData->userIndex = rand();
 		while (1)
 		{
-			if (iocpMain->GetInstance()->mUserDatas.find(sockData.userData->userIndex) != iocpMain->GetInstance()->mUserDatas.end())
-				sockData.userData->userIndex = rand();
+			if (iocpMain->GetInstance()->mUserDatas.find(sockData->userData->userIndex) != iocpMain->GetInstance()->mUserDatas.end())
+				sockData->userData->userIndex = rand();
 			else
 				break;
 		}
 	}
-	iocpMain->GetInstance()->mUserDatas.insert(make_pair(sockData.userData->userIndex, sockData.userData));
-	sockData.userData->isWhere = CHANNEL_SELECT;
+	iocpMain->GetInstance()->mUserDatas.insert(make_pair(sockData->userData->userIndex, sockData->userData));
+	sockData->userData->isWhere = CHANNEL_SELECT;
 
 	char tmp_packet[1024] = { 0, };
 	AnswerLoginPacket* sendPacket = (AnswerLoginPacket*)tmp_packet;
@@ -293,18 +208,16 @@ void RequestLogin(SocketData& sockData)
 	{
 		sendPacket->users[i] = (short)iocpMain->GetInstance()->ch[i]->userDatas.size();
 	}
-	CopyMemory(sendPacket->userName, sockData.userData->userName, strlen(sockData.userData->userName));
-	sockData.sendData = tmp_packet;
-	sockData.byteSize = sizeof(AnswerLoginPacket);
-	PostSend(sockData);
+	CopyMemory(sendPacket->userName, sockData->userData->userName, strlen(sockData->userData->userName));
+	sockData->sendData = tmp_packet;
+	sockData->byteSize = sizeof(AnswerLoginPacket);
+	PostSend(*sockData);
 }
 
-void RequestJoinChannel(SocketData& sockData)
+void RequestJoinChannel(UserPacketData* userPacketData)
 {
-	char userPacket[1024] = { 0, };
-	memcpy(userPacket, sockData.userPacketQueue.front().userPacket, BUF_SIZE);
-	UserPacketDequeue(sockData);
-	RequestJoinChannelPacket* recvPacket = reinterpret_cast<RequestJoinChannelPacket*>(userPacket);
+	SocketData* sockData = userPacketData->userSocketData;	
+	RequestJoinChannelPacket* recvPacket = reinterpret_cast<RequestJoinChannelPacket*>(userPacketData->userPacket);
 
 	char tmp_packet[1024] = { 0, };
 	AnswerJoinChannelPacket* sendPacket = (AnswerJoinChannelPacket*)tmp_packet;
@@ -313,13 +226,13 @@ void RequestJoinChannel(SocketData& sockData)
 
 	if (iocpMain->GetInstance()->ch[recvPacket->channelNum]->GetChannelState() != CHANNEL_USER_FULL)
 	{
-		if (!iocpMain->GetInstance()->ch[recvPacket->channelNum]->userDatas.insert(make_pair(sockData.userData->userIndex, sockData.userData)).second)
+		if (!iocpMain->GetInstance()->ch[recvPacket->channelNum]->userDatas.insert(make_pair(sockData->userData->userIndex, sockData->userData)).second)
 		{
-			cout << sockData.userData->userName << " Channel join falied" << endl;
+			cout << sockData->userData->userName << " Channel join falied" << endl;
 			return;
 		}
-		sockData.userData->channelNum = recvPacket->channelNum;
-		sockData.userData->isWhere = ROOM_SELECT;
+		sockData->userData->channelNum = recvPacket->channelNum;
+		sockData->userData->isWhere = ROOM_SELECT;
 
 		sendPacket->isSuccess = true;
 		sendPacket->usingRoomNumSize = iocpMain->GetInstance()->ch[recvPacket->channelNum]->usingRoomNum.size();
@@ -346,20 +259,18 @@ void RequestJoinChannel(SocketData& sockData)
 		}
 	}
 	cout << "Requset Join Channel, channel No : " << recvPacket->channelNum << endl;
-	sockData.sendData = tmp_packet;
-	sockData.byteSize = sizeof(AnswerJoinChannelPacket);
-	PostSend(sockData);
+	sockData->sendData = tmp_packet;
+	sockData->byteSize = sizeof(AnswerJoinChannelPacket);
+	PostSend(*sockData);
 }
 
-void RequestExitChannel(SocketData& sockData)
+void RequestExitChannel(UserPacketData* userPacketData)
 {
-	char userPacket[1024] = { 0, };
-	memcpy(userPacket, sockData.userPacketQueue.front().userPacket, BUF_SIZE);
-	UserPacketDequeue(sockData);
+	SocketData* sockData = userPacketData->userSocketData;	
 
-	sockData.userData->isWhere = CHANNEL_SELECT;
-	iocpMain->GetInstance()->ch[sockData.userData->channelNum]->
-		userDatas.erase(iocpMain->GetInstance()->ch[sockData.userData->channelNum]->userDatas.find(sockData.userData->userIndex));
+	sockData->userData->isWhere = CHANNEL_SELECT;
+	iocpMain->GetInstance()->ch[sockData->userData->channelNum]->
+		userDatas.erase(iocpMain->GetInstance()->ch[sockData->userData->channelNum]->userDatas.find(sockData->userData->userIndex));
 
 	char tmp_packet[1024] = { 0, };
 	AnswerExitChannelPacket* sendPacket = (AnswerExitChannelPacket*)tmp_packet;
@@ -372,23 +283,22 @@ void RequestExitChannel(SocketData& sockData)
 	{
 		sendPacket->users[i] = (short)iocpMain->GetInstance()->ch[i]->userDatas.size();
 	}
-	sockData.sendData = tmp_packet;
-	sockData.byteSize = sizeof(AnswerExitChannelPacket);
-	PostSend(sockData);
+	sockData->sendData = tmp_packet;
+	sockData->byteSize = sizeof(AnswerExitChannelPacket);
+	PostSend(*sockData);
 }
 
-void RequestCreateRoom(SocketData& sockData)
+void RequestCreateRoom(UserPacketData* userPacketData)
 {
-	char userPacket[1024] = { 0, };
-	memcpy(userPacket, sockData.userPacketQueue.front().userPacket, BUF_SIZE);
-	UserPacketDequeue(sockData);
-	RequestCreateRoomPacket* recvPacket = reinterpret_cast<RequestCreateRoomPacket*>(userPacket);
+	SocketData* sockData = userPacketData->userSocketData;	
+	RequestCreateRoomPacket* recvPacket = reinterpret_cast<RequestCreateRoomPacket*>(userPacketData->userPacket);
+
 	bool isCreate = false;
-	short roomNum = iocpMain->GetInstance()->ch[sockData.userData->channelNum]->CreateRoom(*sockData.userData);
+	short roomNum = iocpMain->GetInstance()->ch[sockData->userData->channelNum]->CreateRoom(*sockData->userData);
 	if (roomNum != 0)
 	{
-		sockData.userData->roomNum = roomNum;
-		sockData.userData->isWhere = ROOM_IN;
+		sockData->userData->roomNum = roomNum;
+		sockData->userData->isWhere = ROOM_IN;
 		isCreate = true;
 	}
 	else
@@ -402,10 +312,10 @@ void RequestCreateRoom(SocketData& sockData)
 	if (isCreate)
 	{
 		map<int, UserData*>::iterator iter;
-		for (iter = iocpMain->GetInstance()->ch[sockData.userData->channelNum]->userDatas.begin();
-			iter != iocpMain->GetInstance()->ch[sockData.userData->channelNum]->userDatas.end(); iter++)
+		for (iter = iocpMain->GetInstance()->ch[sockData->userData->channelNum]->userDatas.begin();
+			iter != iocpMain->GetInstance()->ch[sockData->userData->channelNum]->userDatas.end(); iter++)
 		{
-			if (iter->second->userIndex == sockData.userData->userIndex || iter->second->isWhere == ROOM_IN)
+			if (iter->second->userIndex == sockData->userData->userIndex || iter->second->isWhere == ROOM_IN)
 				continue;
 			else // 같은 채널 사용자에게 보내주기
 			{
@@ -420,19 +330,18 @@ void RequestCreateRoom(SocketData& sockData)
 		}
 	}
 	cout << "Requset Create Room, isCreate : " << isCreate << " Room Num : " << roomNum << endl;
-	sockData.sendData = tmp_packet;
-	sockData.byteSize = sizeof(AnswerCreateRoomPacket);
-	PostSend(sockData);
+	sockData->sendData = tmp_packet;
+	sockData->byteSize = sizeof(AnswerCreateRoomPacket);
+	PostSend(*sockData);
 }
 
-void RequestJoinRoom(SocketData& sockData)
+void RequestJoinRoom(UserPacketData* userPacketData)
 {
-	char userPacket[1024] = { 0, };
-	memcpy(userPacket, sockData.userPacketQueue.front().userPacket, BUF_SIZE);
-	UserPacketDequeue(sockData);
-	RequsetJoinRoomPacket* recvPacket = reinterpret_cast<RequsetJoinRoomPacket*>(userPacket);
+	SocketData* sockData = userPacketData->userSocketData;
+	RequsetJoinRoomPacket* recvPacket = reinterpret_cast<RequsetJoinRoomPacket*>(userPacketData->userPacket);
+
 	bool isJoin = false;
-	isJoin = iocpMain->GetInstance()->ch[sockData.userData->channelNum]->JoinRoom(recvPacket->roomNum, *sockData.userData);
+	isJoin = iocpMain->GetInstance()->ch[sockData->userData->channelNum]->JoinRoom(recvPacket->roomNum, *sockData->userData);
 
 	char tmp_packet[1024] = { 0, };
 	AnswerJoinRoomPacket* sendPacket = (AnswerJoinRoomPacket*)tmp_packet;
@@ -441,55 +350,55 @@ void RequestJoinRoom(SocketData& sockData)
 	sendPacket->roomNum = recvPacket->roomNum;
 	if (isJoin)
 	{
-		sockData.userData->isWhere = ROOM_IN;
-		sockData.userData->roomNum = recvPacket->roomNum;
+		sockData->userData->isWhere = ROOM_IN;
+		sockData->userData->roomNum = recvPacket->roomNum;
 		map<int, RoomData*>::iterator iter_RoomUserData =
-			iocpMain->GetInstance()->ch[sockData.userData->channelNum]->roomDatas.find(sockData.userData->roomNum);
+			iocpMain->GetInstance()->ch[sockData->userData->channelNum]->roomDatas.find(sockData->userData->roomNum);
 		map<int, UserData*>::iterator iter_UserData;
 		for (iter_UserData = iter_RoomUserData->second->userDatas.begin(); iter_UserData != iter_RoomUserData->second->userDatas.end(); iter_UserData++)
 		{
-			if (iter_UserData->second->userIndex != sockData.userData->userIndex)
+			if (iter_UserData->second->userIndex != sockData->userData->userIndex)
 			{
 				CopyMemory(sendPacket->otherUserName, iter_UserData->second->userName, strlen(iter_UserData->second->userName));
 
 				char tmp_notify[1024] = { 0, };
 				NotifyJoinNewUserPacket* notifyPacket = (NotifyJoinNewUserPacket*)tmp_notify;
 				notifyPacket->commandType = NOTIFY_JOIN_NEW_PLAYER;
-				CopyMemory(notifyPacket->newUserName, sockData.userData->userName, strlen(sockData.userData->userName));
+				CopyMemory(notifyPacket->newUserName, sockData->userData->userName, strlen(sockData->userData->userName));
 				iocpMain->GetInstance()->vSocketData[iter_UserData->second->userSockIndex]->sendData = tmp_notify;
 				iocpMain->GetInstance()->vSocketData[iter_UserData->second->userSockIndex]->byteSize = sizeof(NotifyJoinNewUserPacket);
 				PostSend(*iocpMain->GetInstance()->vSocketData[iter_UserData->second->userSockIndex]);
 			}
 		}
 	}
-	sockData.sendData = tmp_packet;
-	sockData.byteSize = sizeof(AnswerJoinRoomPacket);
-	PostSend(sockData);
+	sockData->sendData = tmp_packet;
+	sockData->byteSize = sizeof(AnswerJoinRoomPacket);
+	PostSend(*sockData);
 }
 
-void RequestChatRoom(SocketData& sockData)
+void RequestChatRoom(UserPacketData* userPacketData)
 {
-	if (sockData.userData->isWhere == ROOM_IN)
+	SocketData* sockData = userPacketData->userSocketData;
+
+	if (sockData->userData->isWhere == ROOM_IN)
 	{
 		char userMsg[MAX_MSG_SIZE] = { 0, };
 		char chatUserName[MAX_USER_NAME] = { 0, };
-		char userPacket[1024] = { 0, };
-		memcpy(userPacket, sockData.userPacketQueue.front().userPacket, BUF_SIZE);
-		UserPacketDequeue(sockData);
-		RequestChatRoomPacket* recvPacket = reinterpret_cast<RequestChatRoomPacket*>(userPacket);
+		
+		RequestChatRoomPacket* recvPacket = reinterpret_cast<RequestChatRoomPacket*>(userPacketData->userPacket);
 		CopyMemory(userMsg, recvPacket->userMsg, strlen(recvPacket->userMsg));
 
 		map<int, RoomData*>::iterator iter_RoomUserData =
-			iocpMain->GetInstance()->ch[sockData.userData->channelNum]->roomDatas.find(sockData.userData->roomNum);
+			iocpMain->GetInstance()->ch[sockData->userData->channelNum]->roomDatas.find(sockData->userData->roomNum);
 		map<int, UserData*>::iterator iter_UserData;
 		for (iter_UserData = iter_RoomUserData->second->userDatas.begin(); iter_UserData != iter_RoomUserData->second->userDatas.end(); iter_UserData++)
 		{
-			if (iter_UserData->second->userIndex != sockData.userData->userIndex)
+			if (iter_UserData->second->userIndex != sockData->userData->userIndex)
 			{
 				char tmp_notify[1024] = { 0, };
 				NotifyChatRoomPacket* notifyPacket = (NotifyChatRoomPacket*)tmp_notify;
 				notifyPacket->commandType = NOTIFY_CHAT_ROOM;
-				CopyMemory(notifyPacket->userName, sockData.userData->userName, strlen(sockData.userData->userName));
+				CopyMemory(notifyPacket->userName, sockData->userData->userName, strlen(sockData->userData->userName));
 				CopyMemory(notifyPacket->userMsg, recvPacket->userMsg, strlen(recvPacket->userMsg));
 
 				iocpMain->GetInstance()->vSocketData[iter_UserData->second->userSockIndex]->sendData = tmp_notify;
@@ -500,27 +409,26 @@ void RequestChatRoom(SocketData& sockData)
 	}
 }
 
-void RequestExitRoom(SocketData& sockData)
+void RequestExitRoom(UserPacketData* userPacketData)
 {
-	char userPacket[1024] = { 0, };
-	memcpy(userPacket, sockData.userPacketQueue.front().userPacket, BUF_SIZE);
-	UserPacketDequeue(sockData);
-	RequestExitRoomPacket* recvPacket = reinterpret_cast<RequestExitRoomPacket*>(userPacket);
+	SocketData* sockData = userPacketData->userSocketData;	
+	RequestExitRoomPacket* recvPacket = reinterpret_cast<RequestExitRoomPacket*>(userPacketData->userPacket);
+
 	map<int, RoomData*>::iterator iter_RoomUserData =
-		iocpMain->GetInstance()->ch[sockData.userData->channelNum]->roomDatas.find(sockData.userData->roomNum);
+		iocpMain->GetInstance()->ch[sockData->userData->channelNum]->roomDatas.find(sockData->userData->roomNum);
 
 	map<int, UserData*>::iterator iter_UserData;
-	iter_RoomUserData->second->ExitRoom(sockData.userData->roomNum, *sockData.userData);
+	iter_RoomUserData->second->ExitRoom(sockData->userData->roomNum, *sockData->userData);
 
-	if (sockData.userData->isWhere == ROOM_IN) //방에서 나왔을때
+	if (sockData->userData->isWhere == ROOM_IN) //방에서 나왔을때
 	{
-		if (iocpMain->GetInstance()->ch[sockData.userData->channelNum]->DeleteRoom(sockData.userData->roomNum))
+		if (iocpMain->GetInstance()->ch[sockData->userData->channelNum]->DeleteRoom(sockData->userData->roomNum))
 		{ //나왔는데 방이 없어졌을때 채널에 알리기
 
-			for (iter_UserData = iocpMain->GetInstance()->ch[sockData.userData->channelNum]->userDatas.begin();
-				iter_UserData != iocpMain->GetInstance()->ch[sockData.userData->channelNum]->userDatas.end(); iter_UserData++)
+			for (iter_UserData = iocpMain->GetInstance()->ch[sockData->userData->channelNum]->userDatas.begin();
+				iter_UserData != iocpMain->GetInstance()->ch[sockData->userData->channelNum]->userDatas.end(); iter_UserData++)
 			{
-				if (iter_UserData->second->userIndex == sockData.userData->userIndex ||
+				if (iter_UserData->second->userIndex == sockData->userData->userIndex ||
 					iter_UserData->second->isWhere == ROOM_IN)
 					continue;
 				else
@@ -528,7 +436,7 @@ void RequestExitRoom(SocketData& sockData)
 					char tmp_notify[1024] = { 0, };
 					NotifyDeleteRoomPacket* notifyPacket = (NotifyDeleteRoomPacket*)tmp_notify;
 					notifyPacket->commandType = (short)NOTIFY_DELETE_ROOM;
-					notifyPacket->deleteRoomNum = sockData.userData->roomNum;
+					notifyPacket->deleteRoomNum = sockData->userData->roomNum;
 					iocpMain->GetInstance()->vSocketData[iter_UserData->second->userSockIndex]->sendData = tmp_notify;
 					iocpMain->GetInstance()->vSocketData[iter_UserData->second->userSockIndex]->byteSize = sizeof(NotifyDeleteRoomPacket);
 					PostSend(*iocpMain->GetInstance()->vSocketData[iter_UserData->second->userSockIndex]);
@@ -540,7 +448,7 @@ void RequestExitRoom(SocketData& sockData)
 			for (iter_UserData = iter_RoomUserData->second->userDatas.begin();
 				iter_UserData != iter_RoomUserData->second->userDatas.end(); iter_UserData++)
 			{
-				if (iter_UserData->second->userIndex == sockData.userData->userIndex ||
+				if (iter_UserData->second->userIndex == sockData->userData->userIndex ||
 					iter_UserData->second->isWhere == ROOM_IN)
 					continue;
 				else
@@ -548,7 +456,7 @@ void RequestExitRoom(SocketData& sockData)
 					char tmp_notify[1024] = { 0, };
 					NotifyExitRoomPacket* notifyPacket = (NotifyExitRoomPacket*)tmp_notify;
 					notifyPacket->commandType = (short)NOTIFY_EXIT_ROOM;
-					CopyMemory(notifyPacket->userName, sockData.userData->userName, strlen(sockData.userData->userName));
+					CopyMemory(notifyPacket->userName, sockData->userData->userName, strlen(sockData->userData->userName));
 					iocpMain->GetInstance()->vSocketData[iter_UserData->second->userSockIndex]->sendData = tmp_notify;
 					iocpMain->GetInstance()->vSocketData[iter_UserData->second->userSockIndex]->byteSize = sizeof(NotifyExitRoomPacket);
 					PostSend(*iocpMain->GetInstance()->vSocketData[iter_UserData->second->userSockIndex]);
@@ -559,24 +467,23 @@ void RequestExitRoom(SocketData& sockData)
 		char tmp_packet[1024] = { 0, };
 		AnswerExitRoomPacket* sendPacket = (AnswerExitRoomPacket*)tmp_packet;
 		sendPacket->commandType = (short)ANSWER_EXIT_ROOM;
-		sendPacket->usingRoomNumSize = iocpMain->GetInstance()->ch[sockData.userData->channelNum]->usingRoomNum.size();
+		sendPacket->usingRoomNumSize = iocpMain->GetInstance()->ch[sockData->userData->channelNum]->usingRoomNum.size();
 		int i = 0;
 		set<short>::iterator iter;
-		for (iter = iocpMain->GetInstance()->ch[sockData.userData->channelNum]->usingRoomNum.begin();
-			iter != iocpMain->GetInstance()->ch[sockData.userData->channelNum]->usingRoomNum.end(); iter++)
+		for (iter = iocpMain->GetInstance()->ch[sockData->userData->channelNum]->usingRoomNum.begin();
+			iter != iocpMain->GetInstance()->ch[sockData->userData->channelNum]->usingRoomNum.end(); iter++)
 		{
-			if (!iocpMain->GetInstance()->ch[sockData.userData->channelNum]->roomDatas.find(*iter)->second->isFull) //풀방 생략
+			if (!iocpMain->GetInstance()->ch[sockData->userData->channelNum]->roomDatas.find(*iter)->second->isFull) //풀방 생략
 			{
 				sendPacket->usingRoomNum[i] = *iter;
 				i++;
 			}
 		}
-		sockData.userData->isWhere = ROOM_SELECT;
-		sockData.userData->roomNum = 0;
-		sockData.byteSize = sizeof(AnswerExitRoomPacket);
-		sockData.sendData = tmp_packet;
-		PostSend(sockData);
-		ResetRecvBuff(sockData);
+		sockData->userData->isWhere = ROOM_SELECT;
+		sockData->userData->roomNum = 0;
+		sockData->byteSize = sizeof(AnswerExitRoomPacket);
+		sockData->sendData = tmp_packet;
+		PostSend(*sockData);
 	}
 }
 
